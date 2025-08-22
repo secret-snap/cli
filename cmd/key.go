@@ -33,8 +33,7 @@ var keyExportCmd = &cobra.Command{
 
 		// Check if this is a cloud project
 		if projectConfig.Mode == "cloud" && !keyExportAccept {
-			return fmt.Errorf("exporting keys from cloud projects is disabled by default for security.\n" +
-				"Use --i-accept-risk if you understand the implications.")
+			return fmt.Errorf("exporting keys from cloud projects is disabled by default for security. Use --i-accept-risk if you understand the implications")
 		}
 
 		// Get project key

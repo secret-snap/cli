@@ -70,19 +70,19 @@ var auditCmd = &cobra.Command{
 
 			fmt.Printf("🕐 %s\n", t.Format("2006-01-02 15:04:05"))
 			fmt.Printf("📝 Action: %s\n", log.Action)
-			if log.Details != nil && len(log.Details) > 0 {
+			if len(log.Details) > 0 {
 				fmt.Printf("📄 Details: %v\n", log.Details)
 			}
-					fmt.Println()
-	}
+			fmt.Println()
+		}
 
-	// Show feature-specific upsell for audit logs
-	if err := utils.ShowFeatureUpsell("audit"); err != nil {
-		// Don't fail the command if upsell fails
-		fmt.Fprintf(os.Stderr, "Warning: failed to show upsell: %v\n", err)
-	}
+		// Show feature-specific upsell for audit logs
+		if err := utils.ShowFeatureUpsell("audit"); err != nil {
+			// Don't fail the command if upsell fails
+			fmt.Fprintf(os.Stderr, "Warning: failed to show upsell: %v\n", err)
+		}
 
-	return nil
+		return nil
 	},
 }
 
