@@ -6,19 +6,21 @@ import (
 
 	"secretsnap/internal/config"
 	"secretsnap/internal/crypto"
+	"secretsnap/internal/utils"
 
 	"github.com/spf13/cobra"
 )
 
 var (
-	bundleOutFile    string
-	bundlePass       string
-	bundlePassFile   string
-	bundlePush       bool
-	bundleProject    string
-	bundleForce      bool
-	bundleExpire     string
-	bundleVersion    int
+	bundleOutFile  string
+	bundlePass     string
+	bundlePassFile string
+	bundlePassMode bool
+	bundlePush     bool
+	bundleProject  string
+	bundleForce    bool
+	bundleExpire   string
+	bundleVersion  int
 )
 
 var bundleCmd = &cobra.Command{
@@ -50,14 +52,14 @@ var bundleCmd = &cobra.Command{
 		}
 
 		// Determine mode based on flags and config
-		mode := determineMode(projectConfig, bundlePass, bundlePassFile, bundlePush)
+		mode := determineMode(projectConfig, bundlePass, bundlePassFile, bundlePassMode, bundlePush)
 
 		var encryptedData []byte
 
 		switch mode {
 		case "passphrase":
 			// Passphrase mode
-			passphrase, err := getPassphrase(bundlePass, bundlePassFile)
+			passphrase, err := utils.GetPassphrase(bundlePass, bundlePassFile)
 			if err != nil {
 				return fmt.Errorf("failed to get passphrase: %v", err)
 			}
@@ -137,6 +139,7 @@ func init() {
 	bundleCmd.Flags().StringVarP(&bundleOutFile, "out", "o", "secrets.envsnap", "Output file path")
 	bundleCmd.Flags().StringVarP(&bundlePass, "pass", "p", "", "Passphrase (prompted if not provided)")
 	bundleCmd.Flags().StringVarP(&bundlePassFile, "pass-file", "", "", "Read passphrase from file")
+	bundleCmd.Flags().BoolVarP(&bundlePassMode, "pass-mode", "", false, "Use passphrase mode (prompt for passphrase)")
 	bundleCmd.Flags().BoolVarP(&bundlePush, "push", "", false, "Push to cloud (cloud mode only)")
 	bundleCmd.Flags().StringVarP(&bundleProject, "project", "", "", "Project ID or name (cloud mode only)")
 	bundleCmd.Flags().BoolVarP(&bundleForce, "force", "f", false, "Overwrite output file if it exists")
@@ -145,37 +148,12 @@ func init() {
 }
 
 // determineMode determines the encryption mode based on flags and config
-func determineMode(projectConfig *config.ProjectConfig, pass, passFile string, push bool) string {
-	if pass != "" || passFile != "" {
+func determineMode(projectConfig *config.ProjectConfig, pass, passFile string, passMode, push bool) string {
+	if pass != "" || passFile != "" || passMode {
 		return "passphrase"
 	}
 	if push {
 		return "cloud"
 	}
 	return "local"
-}
-
-// getPassphrase retrieves the passphrase from flags or prompts user
-func getPassphrase(pass, passFile string) (string, error) {
-	if pass != "" {
-		return pass, nil
-	}
-
-	if passFile != "" {
-		data, err := os.ReadFile(passFile)
-		if err != nil {
-			return "", fmt.Errorf("failed to read passphrase file: %v", err)
-		}
-		// Remove trailing newline if present
-		if len(data) > 0 && data[len(data)-1] == '\n' {
-			data = data[:len(data)-1]
-		}
-		return string(data), nil
-	}
-
-	// Prompt user for passphrase
-	fmt.Print("Enter passphrase: ")
-	var passphrase string
-	fmt.Scanln(&passphrase)
-	return passphrase, nil
 }

@@ -6,6 +6,7 @@ import (
 
 	"secretsnap/internal/config"
 	"secretsnap/internal/crypto"
+	"secretsnap/internal/utils"
 
 	"github.com/spf13/cobra"
 )
@@ -14,6 +15,7 @@ var (
 	unbundleOutFile  string
 	unbundlePass     string
 	unbundlePassFile string
+	unbundlePassMode bool
 	unbundleForce    bool
 )
 
@@ -46,14 +48,14 @@ var unbundleCmd = &cobra.Command{
 		}
 
 		// Determine mode based on flags
-		mode := determineUnbundleMode(unbundlePass, unbundlePassFile)
+		mode := determineUnbundleMode(unbundlePass, unbundlePassFile, unbundlePassMode)
 
 		var decryptedData []byte
 
 		switch mode {
 		case "passphrase":
 			// Passphrase mode
-			passphrase, err := getPassphrase(unbundlePass, unbundlePassFile)
+			passphrase, err := utils.GetPassphrase(unbundlePass, unbundlePassFile)
 			if err != nil {
 				return fmt.Errorf("failed to get passphrase: %v", err)
 			}
@@ -111,12 +113,13 @@ func init() {
 	unbundleCmd.Flags().StringVarP(&unbundleOutFile, "out", "o", ".env", "Output file path")
 	unbundleCmd.Flags().StringVarP(&unbundlePass, "pass", "p", "", "Passphrase (prompted if not provided)")
 	unbundleCmd.Flags().StringVarP(&unbundlePassFile, "pass-file", "", "", "Read passphrase from file")
+	unbundleCmd.Flags().BoolVarP(&unbundlePassMode, "pass-mode", "", false, "Use passphrase mode (prompt for passphrase)")
 	unbundleCmd.Flags().BoolVarP(&unbundleForce, "force", "f", false, "Overwrite output file if it exists")
 }
 
 // determineUnbundleMode determines the decryption mode based on flags
-func determineUnbundleMode(pass, passFile string) string {
-	if pass != "" || passFile != "" {
+func determineUnbundleMode(pass, passFile string, passMode bool) string {
+	if pass != "" || passFile != "" || passMode {
 		return "passphrase"
 	}
 	return "local"

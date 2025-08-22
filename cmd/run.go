@@ -8,6 +8,7 @@ import (
 
 	"secretsnap/internal/config"
 	"secretsnap/internal/crypto"
+	"secretsnap/internal/utils"
 
 	"github.com/spf13/cobra"
 )
@@ -15,6 +16,7 @@ import (
 var (
 	runPass     string
 	runPassFile string
+	runPassMode bool
 )
 
 var runCmd = &cobra.Command{
@@ -47,14 +49,14 @@ var runCmd = &cobra.Command{
 		}
 
 		// Determine mode based on flags
-		mode := determineRunMode(runPass, runPassFile)
+		mode := determineRunMode(runPass, runPassFile, runPassMode)
 
 		var decryptedData []byte
 
 		switch mode {
 		case "passphrase":
 			// Passphrase mode
-			passphrase, err := getPassphrase(runPass, runPassFile)
+			passphrase, err := utils.GetPassphrase(runPass, runPassFile)
 			if err != nil {
 				return fmt.Errorf("failed to get passphrase: %v", err)
 			}
@@ -113,15 +115,18 @@ var runCmd = &cobra.Command{
 func init() {
 	runCmd.Flags().StringVarP(&runPass, "pass", "p", "", "Passphrase (prompted if not provided)")
 	runCmd.Flags().StringVarP(&runPassFile, "pass-file", "", "", "Read passphrase from file")
+	runCmd.Flags().BoolVarP(&runPassMode, "pass-mode", "", false, "Use passphrase mode (prompt for passphrase)")
 }
 
 // determineRunMode determines the decryption mode based on flags
-func determineRunMode(pass, passFile string) string {
-	if pass != "" || passFile != "" {
+func determineRunMode(pass, passFile string, passMode bool) string {
+	if pass != "" || passFile != "" || passMode {
 		return "passphrase"
 	}
 	return "local"
 }
+
+
 
 // parseEnvFile parses environment variables from a .env file format
 func parseEnvFile(data []byte) ([]string, error) {
