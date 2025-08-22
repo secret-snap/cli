@@ -1,0 +1,30 @@
+name: CI
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install secretsnap
+        run: |
+          curl -sSL https://get.secretsnap.sh | bash
+      
+      - name: Pull secrets
+        run: |
+          secretsnap pull --project ${{ secrets.SECRETSNAP_PROJECT_ID }} --out .env
+        env:
+          SECRETSNAP_LICENSE: ${{ secrets.SECRETSNAP_LICENSE }}
+      
+      - name: Run tests
+        run: |
+          make test
+        env:
+          # Environment variables from .env will be loaded automatically
+          # by the application or you can source them:
+          # source .env
+      
+      - name: Build application
+        run: |
+          make build
