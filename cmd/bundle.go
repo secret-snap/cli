@@ -11,46 +11,78 @@ import (
 )
 
 var (
-	bundleOutFile string
-	bundlePass    string
-	bundlePush    bool
-	bundleProject string
+	bundleOutFile    string
+	bundlePass       string
+	bundlePassFile   string
+	bundlePush       bool
+	bundleProject    string
+	bundleForce      bool
+	bundleExpire     string
+	bundleVersion    int
 )
 
 var bundleCmd = &cobra.Command{
 	Use:   "bundle [path-to-.env]",
 	Short: "Encrypt a .env file into a bundle",
-	Long:  `Encrypt a .env file using age encryption. In local mode, uses passphrase. In cloud mode, uses symmetric key encryption.`,
+	Long:  `Encrypt a .env file using age encryption. Supports local mode (cached key), passphrase mode, and cloud mode.`,
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		inputFile := args[0]
 
-		// Read input file
+		// Validate input file exists and is not empty
+		if _, err := os.Stat(inputFile); os.IsNotExist(err) {
+			return fmt.Errorf("input file '%s' does not exist", inputFile)
+		}
+
 		data, err := os.ReadFile(inputFile)
 		if err != nil {
 			return fmt.Errorf("failed to read input file: %v", err)
 		}
 
-		cfg, err := config.LoadConfig()
-		if err != nil {
-			return fmt.Errorf("failed to load config: %v", err)
+		if len(data) == 0 {
+			return fmt.Errorf("input file '%s' is empty", inputFile)
 		}
+
+		// Load project config
+		projectConfig, err := config.LoadProjectConfig()
+		if err != nil {
+			return fmt.Errorf("failed to load project config: %v", err)
+		}
+
+		// Determine mode based on flags and config
+		mode := determineMode(projectConfig, bundlePass, bundlePassFile, bundlePush)
 
 		var encryptedData []byte
 
-		if cfg.Mode == "local" {
-			// Local mode: use passphrase
-			if bundlePass == "" {
-				fmt.Print("Enter passphrase: ")
-				fmt.Scanln(&bundlePass)
+		switch mode {
+		case "passphrase":
+			// Passphrase mode
+			passphrase, err := getPassphrase(bundlePass, bundlePassFile)
+			if err != nil {
+				return fmt.Errorf("failed to get passphrase: %v", err)
 			}
 
-			encryptedData, err = crypto.EncryptWithPassphrase(data, bundlePass)
+			encryptedData, err = crypto.EncryptWithPassphrase(data, passphrase)
 			if err != nil {
 				return fmt.Errorf("failed to encrypt: %v", err)
 			}
-		} else {
-			// Cloud mode: use symmetric key
+
+		case "cloud":
+			// Cloud mode (paid)
+			if !bundlePush {
+				return fmt.Errorf("cloud mode requires --push flag")
+			}
+
+			// Check if user is logged in
+			token, err := config.LoadToken()
+			if err != nil {
+				return fmt.Errorf("failed to load token: %v", err)
+			}
+			if token == "" {
+				return fmt.Errorf("cloud sync is Pro. Run `secretsnap login --license …` or use local mode (no `--push`)")
+			}
+
+			// Generate fresh data key for this bundle
 			dataKey, err := crypto.GenerateDataKey()
 			if err != nil {
 				return fmt.Errorf("failed to generate data key: %v", err)
@@ -61,14 +93,38 @@ var bundleCmd = &cobra.Command{
 				return fmt.Errorf("failed to encrypt: %v", err)
 			}
 
-			if bundlePush {
-				// TODO: Implement cloud push logic
-				return fmt.Errorf("cloud push not yet implemented")
+			// TODO: Implement cloud push logic
+			return fmt.Errorf("cloud push not yet implemented")
+
+		default:
+			// Local mode (default)
+			projectKey, err := config.GetProjectKey(projectConfig.ProjectName)
+			if err != nil {
+				return fmt.Errorf("no local project key found for '%s'. Fix:\n"+
+					"• On teammate's machine: `secretsnap key export --project %s`\n"+
+					"• Or use passphrase: `--pass`\n"+
+					"• Or use paid pull: `secretsnap login` then `secretsnap pull`",
+					projectConfig.ProjectName, projectConfig.ProjectName)
+			}
+
+			keyBytes, err := crypto.KeyFromBase64(projectKey.KeyB64)
+			if err != nil {
+				return fmt.Errorf("failed to decode project key: %v", err)
+			}
+
+			encryptedData, err = crypto.EncryptWithKey(data, keyBytes)
+			if err != nil {
+				return fmt.Errorf("failed to encrypt: %v", err)
 			}
 		}
 
+		// Check if output file exists and handle --force
+		if _, err := os.Stat(bundleOutFile); err == nil && !bundleForce {
+			return fmt.Errorf("refusing to overwrite %s. Use `--force`", bundleOutFile)
+		}
+
 		// Write output file
-		if err := os.WriteFile(bundleOutFile, encryptedData, 0600); err != nil {
+		if err := os.WriteFile(bundleOutFile, encryptedData, 0644); err != nil {
 			return fmt.Errorf("failed to write output file: %v", err)
 		}
 
@@ -80,6 +136,46 @@ var bundleCmd = &cobra.Command{
 func init() {
 	bundleCmd.Flags().StringVarP(&bundleOutFile, "out", "o", "secrets.envsnap", "Output file path")
 	bundleCmd.Flags().StringVarP(&bundlePass, "pass", "p", "", "Passphrase (prompted if not provided)")
+	bundleCmd.Flags().StringVarP(&bundlePassFile, "pass-file", "", "", "Read passphrase from file")
 	bundleCmd.Flags().BoolVarP(&bundlePush, "push", "", false, "Push to cloud (cloud mode only)")
 	bundleCmd.Flags().StringVarP(&bundleProject, "project", "", "", "Project ID or name (cloud mode only)")
+	bundleCmd.Flags().BoolVarP(&bundleForce, "force", "f", false, "Overwrite output file if it exists")
+	bundleCmd.Flags().StringVarP(&bundleExpire, "expire", "", "", "Expiration time (e.g., 24h)")
+	bundleCmd.Flags().IntVarP(&bundleVersion, "version", "", 0, "Version number")
+}
+
+// determineMode determines the encryption mode based on flags and config
+func determineMode(projectConfig *config.ProjectConfig, pass, passFile string, push bool) string {
+	if pass != "" || passFile != "" {
+		return "passphrase"
+	}
+	if push {
+		return "cloud"
+	}
+	return "local"
+}
+
+// getPassphrase retrieves the passphrase from flags or prompts user
+func getPassphrase(pass, passFile string) (string, error) {
+	if pass != "" {
+		return pass, nil
+	}
+
+	if passFile != "" {
+		data, err := os.ReadFile(passFile)
+		if err != nil {
+			return "", fmt.Errorf("failed to read passphrase file: %v", err)
+		}
+		// Remove trailing newline if present
+		if len(data) > 0 && data[len(data)-1] == '\n' {
+			data = data[:len(data)-1]
+		}
+		return string(data), nil
+	}
+
+	// Prompt user for passphrase
+	fmt.Print("Enter passphrase: ")
+	var passphrase string
+	fmt.Scanln(&passphrase)
+	return passphrase, nil
 }

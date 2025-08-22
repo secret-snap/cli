@@ -114,11 +114,47 @@ func DecryptWithKey(encryptedData []byte, key []byte) ([]byte, error) {
 	return data, nil
 }
 
-// GenerateDataKey generates a random 32-byte key for symmetric encryption
-func GenerateDataKey() ([]byte, error) {
+// GenerateProjectKey generates a new 32-byte project key
+func GenerateProjectKey() ([]byte, error) {
 	key := make([]byte, 32)
 	if _, err := rand.Read(key); err != nil {
 		return nil, fmt.Errorf("failed to generate random key: %v", err)
 	}
 	return key, nil
+}
+
+// GenerateKeyID generates a unique key ID
+func GenerateKeyID() (string, error) {
+	// Generate 16 random bytes for the key ID
+	idBytes := make([]byte, 16)
+	if _, err := rand.Read(idBytes); err != nil {
+		return "", fmt.Errorf("failed to generate key ID: %v", err)
+	}
+	
+	// Convert to base64 for a readable ID
+	return base64.StdEncoding.EncodeToString(idBytes), nil
+}
+
+// GenerateDataKey generates a random 32-byte key for symmetric encryption
+func GenerateDataKey() ([]byte, error) {
+	return GenerateProjectKey()
+}
+
+// KeyFromBase64 decodes a base64-encoded key
+func KeyFromBase64(keyB64 string) ([]byte, error) {
+	key, err := base64.StdEncoding.DecodeString(keyB64)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode base64 key: %v", err)
+	}
+	
+	if len(key) != 32 {
+		return nil, fmt.Errorf("key must be 32 bytes, got %d", len(key))
+	}
+	
+	return key, nil
+}
+
+// KeyToBase64 encodes a key to base64
+func KeyToBase64(key []byte) string {
+	return base64.StdEncoding.EncodeToString(key)
 }
