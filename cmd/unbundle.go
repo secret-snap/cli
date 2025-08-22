@@ -105,6 +105,21 @@ var unbundleCmd = &cobra.Command{
 		}
 
 		fmt.Printf("✅ Decrypted %s to %s\n", inputFile, unbundleOutFile)
+
+		// Track usage and show upsell for free users
+		if mode == "local" || mode == "passphrase" {
+			if err := config.IncrementFreeRun(); err != nil {
+				// Don't fail the command if upsell tracking fails
+				fmt.Fprintf(os.Stderr, "Warning: failed to track usage: %v\n", err)
+			}
+
+			// Show contextual upsell
+			if err := utils.ShowContextualUpsell("unbundle"); err != nil {
+				// Don't fail the command if upsell fails
+				fmt.Fprintf(os.Stderr, "Warning: failed to show upsell: %v\n", err)
+			}
+		}
+
 		return nil
 	},
 }

@@ -96,6 +96,11 @@ var bundleCmd = &cobra.Command{
 			}
 
 			// TODO: Implement cloud push logic
+			// Show feature-specific upsell for cloud push
+			if err := utils.ShowFeatureUpsell("cloud"); err != nil {
+				// Don't fail the command if upsell fails
+				fmt.Fprintf(os.Stderr, "Warning: failed to show upsell: %v\n", err)
+			}
 			return fmt.Errorf("cloud push not yet implemented")
 
 		default:
@@ -131,6 +136,13 @@ var bundleCmd = &cobra.Command{
 		}
 
 		fmt.Printf("✅ Encrypted %s to %s\n", inputFile, bundleOutFile)
+
+		// Track usage and show upsell for free users
+		if mode == "local" || mode == "passphrase" {
+			config.IncrementFreeRun()
+			utils.ShowContextualUpsell("bundle")
+		}
+
 		return nil
 	},
 }

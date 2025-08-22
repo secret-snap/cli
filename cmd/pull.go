@@ -8,15 +8,16 @@ import (
 	"secretsnap/internal/api"
 	"secretsnap/internal/config"
 	"secretsnap/internal/crypto"
+	"secretsnap/internal/utils"
 
 	"github.com/spf13/cobra"
 )
 
 var (
-	pullOutFile  string
-	pullProject  string
-	pullVersion  int
-	pullForce    bool
+	pullOutFile string
+	pullProject string
+	pullVersion int
+	pullForce   bool
 )
 
 var pullCmd = &cobra.Command{
@@ -93,6 +94,13 @@ var pullCmd = &cobra.Command{
 		}
 
 		fmt.Printf("✅ Pulled version %d to %s\n", resp.Version, pullOutFile)
+
+		// Show feature-specific upsell for cloud features
+		if err := utils.ShowFeatureUpsell("cloud"); err != nil {
+			// Don't fail the command if upsell fails
+			fmt.Fprintf(os.Stderr, "Warning: failed to show upsell: %v\n", err)
+		}
+
 		return nil
 	},
 }

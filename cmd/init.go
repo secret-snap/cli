@@ -2,10 +2,12 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"secretsnap/internal/config"
 	"secretsnap/internal/crypto"
+	"secretsnap/internal/utils"
 
 	"github.com/spf13/cobra"
 )
@@ -66,6 +68,12 @@ var initCmd = &cobra.Command{
 		fmt.Printf("📦 Project: %s\n", projectConfig.ProjectName)
 		fmt.Printf("🔑 Key ID: %s\n", projectKey.KeyID)
 		fmt.Printf("🔒 Key cached at: %s\n", config.GetKeysConfigPath())
+
+		// Show general upsell for new users
+		if err := utils.ShowUpsell(); err != nil {
+			// Don't fail the command if upsell fails
+			fmt.Fprintf(os.Stderr, "Warning: failed to show upsell: %v\n", err)
+		}
 
 		return nil
 	},

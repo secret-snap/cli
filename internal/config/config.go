@@ -34,6 +34,13 @@ type GlobalConfig struct {
 	Token string `json:"token"` // JWT token for cloud mode
 }
 
+// UsageStats tracks usage for upsell messages
+type UsageStats struct {
+	FreeRuns     int       `json:"free_runs"`
+	LastUpsell   time.Time `json:"last_upsell"`
+	UpsellShown  bool      `json:"upsell_shown"`
+}
+
 var (
 	configDir     string
 	projectFile   string
@@ -41,6 +48,7 @@ var (
 	globalDir     string
 	tokenFile     string
 	gitignoreFile string
+	usageFile     string
 )
 
 func init() {
@@ -55,6 +63,7 @@ func init() {
 	globalDir = configDir
 	tokenFile = filepath.Join(globalDir, "token")
 	gitignoreFile = ".gitignore"
+	usageFile = filepath.Join(globalDir, "usage.json")
 }
 
 // EnsureConfigDir creates the global config directory with proper permissions
@@ -294,4 +303,102 @@ func GetProjectConfigPath() string {
 // GetKeysConfigPath returns the path to the keys config file
 func GetKeysConfigPath() string {
 	return keysFile
+}
+
+// LoadUsageStats loads usage statistics
+func LoadUsageStats() (*UsageStats, error) {
+	if err := EnsureConfigDir(); err != nil {
+		return nil, fmt.Errorf("failed to create config directory: %v", err)
+	}
+
+	if _, err := os.Stat(usageFile); os.IsNotExist(err) {
+		// Create default usage stats
+		stats := &UsageStats{
+			FreeRuns:    0,
+			LastUpsell:  time.Time{},
+			UpsellShown: false,
+		}
+		if err := SaveUsageStats(stats); err != nil {
+			return nil, err
+		}
+		return stats, nil
+	}
+
+	data, err := os.ReadFile(usageFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read usage file: %v", err)
+	}
+
+	var stats UsageStats
+	if err := json.Unmarshal(data, &stats); err != nil {
+		return nil, fmt.Errorf("failed to parse usage file: %v", err)
+	}
+
+	return &stats, nil
+}
+
+// SaveUsageStats saves usage statistics
+func SaveUsageStats(stats *UsageStats) error {
+	if err := EnsureConfigDir(); err != nil {
+		return err
+	}
+
+	data, err := json.MarshalIndent(stats, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal usage stats: %v", err)
+	}
+
+	// Atomic write: write to temp file first, then rename
+	tempFile := usageFile + ".tmp"
+	if err := os.WriteFile(tempFile, data, 0600); err != nil {
+		return fmt.Errorf("failed to write temp usage file: %v", err)
+	}
+
+	if err := os.Rename(tempFile, usageFile); err != nil {
+		os.Remove(tempFile) // Clean up temp file
+		return fmt.Errorf("failed to rename usage file: %v", err)
+	}
+
+	return nil
+}
+
+// IncrementFreeRun increments the free run counter
+func IncrementFreeRun() error {
+	stats, err := LoadUsageStats()
+	if err != nil {
+		return err
+	}
+
+	stats.FreeRuns++
+	return SaveUsageStats(stats)
+}
+
+// ShouldShowUpsell checks if we should show an upsell message
+func ShouldShowUpsell() (bool, error) {
+	stats, err := LoadUsageStats()
+	if err != nil {
+		return false, err
+	}
+
+	// Show upsell after 3rd run and not more than once per day
+	if stats.FreeRuns >= 3 && !stats.UpsellShown {
+		// Check if we've shown upsell in the last 24 hours
+		if time.Since(stats.LastUpsell) > 24*time.Hour {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// MarkUpsellShown marks that we've shown an upsell message
+func MarkUpsellShown() error {
+	stats, err := LoadUsageStats()
+	if err != nil {
+		return err
+	}
+
+	stats.UpsellShown = true
+	stats.LastUpsell = time.Now()
+	return SaveUsageStats(stats)
 }

@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"secretsnap/internal/api"
 	"secretsnap/internal/config"
+	"secretsnap/internal/utils"
 
 	"github.com/spf13/cobra"
 )
@@ -69,6 +71,12 @@ var shareCmd = &cobra.Command{
 		fmt.Printf("✅ Invited %s\n", shareUser)
 		fmt.Printf("🔑 Role: %s\n", shareRole)
 		fmt.Printf("📦 Project: %s\n", projectConfig.ProjectName)
+
+		// Show feature-specific upsell for team sharing
+		if err := utils.ShowFeatureUpsell("team"); err != nil {
+			// Don't fail the command if upsell fails
+			fmt.Fprintf(os.Stderr, "Warning: failed to show upsell: %v\n", err)
+		}
 
 		return nil
 	},

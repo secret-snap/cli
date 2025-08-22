@@ -2,10 +2,12 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"secretsnap/internal/api"
 	"secretsnap/internal/config"
+	"secretsnap/internal/utils"
 
 	"github.com/spf13/cobra"
 )
@@ -71,10 +73,16 @@ var auditCmd = &cobra.Command{
 			if log.Details != nil && len(log.Details) > 0 {
 				fmt.Printf("📄 Details: %v\n", log.Details)
 			}
-			fmt.Println()
-		}
+					fmt.Println()
+	}
 
-		return nil
+	// Show feature-specific upsell for audit logs
+	if err := utils.ShowFeatureUpsell("audit"); err != nil {
+		// Don't fail the command if upsell fails
+		fmt.Fprintf(os.Stderr, "Warning: failed to show upsell: %v\n", err)
+	}
+
+	return nil
 	},
 }
 
