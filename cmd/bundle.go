@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"secretsnap/internal/api"
 	"secretsnap/internal/config"
 	"secretsnap/internal/crypto"
 	"secretsnap/internal/utils"
@@ -84,24 +85,69 @@ var bundleCmd = &cobra.Command{
 				return fmt.Errorf("cloud sync is Pro. Run `secretsnap login --license …` or use local mode (no `--push`)")
 			}
 
+			// Load project config to get project ID
+			projectConfig, err := config.LoadProjectConfig()
+			if err != nil {
+				return fmt.Errorf("failed to load project config: %v", err)
+			}
+
+			// Use project from flag or config
+			projectID := bundleProject
+			if projectID == "" {
+				projectID = projectConfig.ProjectID
+			}
+
+			if projectID == "" || projectID == "local" {
+				return fmt.Errorf("no project specified. Use --project or run 'secretsnap project create <name>' first")
+			}
+
 			// Generate fresh data key for this bundle
 			dataKey, err := crypto.GenerateDataKey()
 			if err != nil {
 				return fmt.Errorf("failed to generate data key: %v", err)
 			}
 
+			// Encrypt data with the data key
 			encryptedData, err = crypto.EncryptWithKey(data, dataKey)
 			if err != nil {
 				return fmt.Errorf("failed to encrypt: %v", err)
 			}
 
-			// TODO: Implement cloud push logic
-			// Show feature-specific upsell for cloud push
-			if err := utils.ShowFeatureUpsell("cloud"); err != nil {
-				// Don't fail the command if upsell fails
-				fmt.Fprintf(os.Stderr, "Warning: failed to show upsell: %v\n", err)
+			// Create API client
+			client := api.NewClient("http://localhost:8080", token)
+
+			// Step 1: Get upload URL from API
+			fmt.Printf("📤 Starting cloud upload...\n")
+			pushResp, err := client.BundlePush(projectID, len(encryptedData))
+			if err != nil {
+				return fmt.Errorf("failed to get upload URL: %v", err)
 			}
-			return fmt.Errorf("cloud push not yet implemented")
+
+			// Step 2: Upload encrypted data to S3
+			fmt.Printf("☁️ Uploading to cloud storage...\n")
+			if err := client.UploadToS3(pushResp.UploadURL, encryptedData); err != nil {
+				return fmt.Errorf("failed to upload to cloud: %v", err)
+			}
+
+			// Step 3: Finalize bundle (API will handle KMS wrapping)
+			fmt.Printf("🔐 Securing with KMS...\n")
+			if err := client.BundleFinalize(pushResp.BundleID, pushResp.S3Key, dataKey); err != nil {
+				return fmt.Errorf("failed to finalize bundle: %v", err)
+			}
+
+			fmt.Printf("✅ Successfully pushed to cloud!\n")
+			fmt.Printf("📦 Bundle ID: %s\n", pushResp.BundleID)
+			fmt.Printf("📁 Project: %s\n", projectConfig.ProjectName)
+
+			// Also save local copy if requested
+			if bundleOutFile != "secrets.envsnap" {
+				if err := os.WriteFile(bundleOutFile, encryptedData, 0644); err != nil {
+					return fmt.Errorf("failed to write local copy: %v", err)
+				}
+				fmt.Printf("💾 Local copy saved to: %s\n", bundleOutFile)
+			}
+
+			return nil
 
 		default:
 			// Local mode (default)

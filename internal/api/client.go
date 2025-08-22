@@ -48,6 +48,7 @@ type BundlePushRequest struct {
 type BundlePushResponse struct {
 	UploadURL string `json:"upload_url"`
 	BundleID  string `json:"bundle_id"`
+	S3Key     string `json:"s3_key"`
 }
 
 type BundleFinalizeRequest struct {
