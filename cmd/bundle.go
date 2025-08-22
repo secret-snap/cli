@@ -207,11 +207,21 @@ func init() {
 
 // determineMode determines the encryption mode based on flags and config
 func determineMode(projectConfig *config.ProjectConfig, pass, passFile string, passMode, push bool) string {
+	// Cloud mode takes highest priority (makes us money!)
+	if push || (projectConfig != nil && projectConfig.Mode == "cloud" && projectConfig.ProjectID != "" && projectConfig.ProjectID != "local") {
+		return "cloud"
+	}
+
+	// Passphrase mode is checked before local (fallback when explicitly requested)
 	if pass != "" || passFile != "" || passMode {
 		return "passphrase"
 	}
-	if push {
-		return "cloud"
+
+	// Local mode is the default
+	if projectConfig == nil || projectConfig.Mode == "local" || projectConfig.Mode == "" {
+		return "local"
 	}
+
+	// Default to local mode
 	return "local"
 }
