@@ -187,6 +187,31 @@ func setupTestServer() *TestServer {
 		json.NewEncoder(w).Encode(resp)
 	})
 
+	// Mock share endpoint
+	mux.HandleFunc("/v1/shares", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req api.ShareRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+
+		// Record audit log
+		server.auditLogs = append(server.auditLogs, api.AuditLog{
+			ID:        "audit-125",
+			Action:    "project_share",
+			Details:   map[string]interface{}{"project_id": req.ProjectID, "user_email": req.UserEmail, "role": req.Role},
+			CreatedAt: time.Now().Format(time.RFC3339),
+		})
+
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status": "ok"}`))
+	})
+
 	// Mock audit logs endpoint
 	mux.HandleFunc("/v1/audit", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {
@@ -235,6 +260,16 @@ func setupTestData(t *testing.T) *TestData {
 func cleanupTestData(t *testing.T, data *TestData) {
 	if err := os.RemoveAll(data.tempDir); err != nil {
 		t.Logf("Warning: failed to cleanup temp directory: %v", err)
+	}
+}
+
+// ensureNoToken ensures there's no token file for license enforcement tests
+func ensureNoToken(t *testing.T) {
+	tokenFile := filepath.Join(os.Getenv("HOME"), ".secretsnap", "token")
+	if _, err := os.Stat(tokenFile); err == nil {
+		if err := os.Remove(tokenFile); err != nil {
+			t.Logf("Warning: failed to remove token file: %v", err)
+		}
 	}
 }
 
@@ -624,6 +659,135 @@ func TestNoSecretsInLogs(t *testing.T) {
 			// Don't fail on command errors, just check logs
 			if err != nil {
 				t.Logf("Command failed (expected for some tests): %v", err)
+			}
+
+			// Check that no secrets are logged
+			checkNoSecretsInLogs(t, stdout, stderr)
+		})
+	}
+}
+
+// TestLicenseEnforcement tests that paid features require valid license
+func TestLicenseEnforcement(t *testing.T) {
+	data := setupTestData(t)
+	defer cleanupTestData(t, data)
+
+	// Ensure no token file exists for license enforcement tests
+	ensureNoToken(t)
+
+	// Initialize project first
+	_, _, err := runCommand(t, data, "init")
+	if err != nil {
+		t.Fatalf("Failed to initialize: %v", err)
+	}
+
+	// Test that paid commands fail without login
+	// Note: These commands will fail with connection errors because they try to connect to localhost:8080
+	// The license enforcement happens in the CLI logic before the API call
+	tests := []struct {
+		name          string
+		args          []string
+		wantErr       bool
+		errorContains string
+	}{
+		{
+			name:          "bundle push without login",
+			args:          []string{"bundle", data.envFile, "--push", "--project", data.projectName},
+			wantErr:       true,
+			errorContains: "cloud sync is Pro",
+		},
+		{
+			name:          "pull without login",
+			args:          []string{"pull", "--project", data.projectName},
+			wantErr:       true,
+			errorContains: "not logged in",
+		},
+		{
+			name:          "share without login",
+			args:          []string{"share", "--user", "test@example.com", "--role", "read"},
+			wantErr:       true,
+			errorContains: "not logged in",
+		},
+		{
+			name:          "audit without login",
+			args:          []string{"audit", "--project", data.projectName},
+			wantErr:       true,
+			errorContains: "not logged in",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stdout, stderr, err := runCommand(t, data, tt.args...)
+
+			if tt.wantErr && err == nil {
+				t.Errorf("Expected error but got none")
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("Unexpected error: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+			}
+
+			// Check that the error message contains the expected text
+			if tt.wantErr && err != nil {
+				errorOutput := stdout + stderr
+				if !strings.Contains(errorOutput, tt.errorContains) {
+					t.Errorf("Error output does not contain expected text '%s'. Got: %s", tt.errorContains, errorOutput)
+				}
+			}
+
+			// Check that no secrets are logged
+			checkNoSecretsInLogs(t, stdout, stderr)
+		})
+	}
+
+	// Test that commands work after login
+	server := setupTestServer()
+	defer server.Close()
+
+	// Set API URL to test server
+	os.Setenv("SECRETSNAP_API_URL", server.URL)
+
+	// Login first
+	_, _, err = runCommand(t, data, "login", "--license", data.licenseKey)
+	if err != nil {
+		t.Fatalf("Failed to login: %v", err)
+	}
+
+	// Create project
+	_, _, err = runCommand(t, data, "project", "create", data.projectName)
+	if err != nil {
+		t.Fatalf("Failed to create project: %v", err)
+	}
+
+	// Test that paid commands work after login
+	successTests := []struct {
+		name string
+		args []string
+	}{
+		{
+			name: "bundle push with login",
+			args: []string{"bundle", data.envFile, "--push", "--project", data.projectName},
+		},
+		{
+			name: "pull with login",
+			args: []string{"pull", "--project", data.projectName, "--out", ".env.pulled", "--force"},
+		},
+		{
+			name: "share with login",
+			args: []string{"share", "--user", "test@example.com", "--role", "read"},
+		},
+		{
+			name: "audit with login",
+			args: []string{"audit", "--project", data.projectName},
+		},
+	}
+
+	for _, tt := range successTests {
+		t.Run(tt.name, func(t *testing.T) {
+			stdout, stderr, err := runCommand(t, data, tt.args...)
+
+			if err != nil {
+				t.Errorf("Command failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
 			}
 
 			// Check that no secrets are logged
