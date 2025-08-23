@@ -5,6 +5,7 @@ import (
 
 	"secretsnap/internal/api"
 	"secretsnap/internal/config"
+	"secretsnap/internal/utils"
 
 	"github.com/spf13/cobra"
 )
@@ -39,7 +40,7 @@ var projectCreateCmd = &cobra.Command{
 		}
 
 		// Create API client
-		client := api.NewClient("http://localhost:8080", token)
+		client := api.NewClient(utils.GetAPIURL(), token)
 
 		// Create project
 		project, err := client.CreateProject(projectName)

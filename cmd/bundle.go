@@ -114,7 +114,7 @@ var bundleCmd = &cobra.Command{
 			}
 
 			// Create API client
-			client := api.NewClient("http://localhost:8080", token)
+			client := api.NewClient(utils.GetAPIURL(), token)
 
 			// Step 1: Get upload URL from API
 			fmt.Printf("📤 Starting cloud upload...\n")

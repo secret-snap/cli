@@ -50,7 +50,7 @@ var pullCmd = &cobra.Command{
 		}
 
 		// Create API client
-		client := api.NewClient("http://localhost:8080", token)
+		client := api.NewClient(utils.GetAPIURL(), token)
 
 		// Pull bundle
 		resp, err := client.BundlePull(pullProject)

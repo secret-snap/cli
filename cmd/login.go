@@ -5,6 +5,7 @@ import (
 
 	"secretsnap/internal/api"
 	"secretsnap/internal/config"
+	"secretsnap/internal/utils"
 
 	"github.com/spf13/cobra"
 )
@@ -24,7 +25,7 @@ var loginCmd = &cobra.Command{
 		}
 
 		if loginAPIURL == "" {
-			loginAPIURL = "http://localhost:8080" // Default for local development
+			loginAPIURL = utils.GetAPIURL() // Get from environment or default
 		}
 
 		// Create API client
