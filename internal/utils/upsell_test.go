@@ -30,6 +30,16 @@ func TestUpsellMessageVariations(t *testing.T) {
 }
 
 func TestShouldShowUpsell(t *testing.T) {
+	// Reset to clean state
+	stats := &config.UsageStats{
+		FreeRuns:    0,
+		LastUpsell:  time.Time{}, // Zero time
+		UpsellShown: false,
+	}
+	if err := config.SaveUsageStats(stats); err != nil {
+		t.Fatalf("SaveUsageStats failed: %v", err)
+	}
+
 	// Test initial state (should not show upsell)
 	shouldShow, err := config.ShouldShowUpsell()
 	if err != nil {
@@ -46,7 +56,7 @@ func TestShouldShowUpsell(t *testing.T) {
 		}
 	}
 
-	// Now should show upsell
+	// Now should show upsell (since LastUpsell is zero time, it's > 24 hours ago)
 	shouldShow, err = config.ShouldShowUpsell()
 	if err != nil {
 		t.Fatalf("ShouldShowUpsell failed: %v", err)
@@ -60,7 +70,7 @@ func TestShouldShowUpsell(t *testing.T) {
 		t.Fatalf("MarkUpsellShown failed: %v", err)
 	}
 
-	// Should not show again immediately
+	// Should not show again immediately (within 24 hours)
 	shouldShow, err = config.ShouldShowUpsell()
 	if err != nil {
 		t.Fatalf("ShouldShowUpsell failed: %v", err)
@@ -73,7 +83,7 @@ func TestShouldShowUpsell(t *testing.T) {
 func TestContextualUpsell(t *testing.T) {
 	// Test that contextual upsell has messages for each command
 	commands := []string{"bundle", "run", "unbundle"}
-	
+
 	for _, cmd := range commands {
 		// This is a basic test - in a real test we'd mock the config
 		// and verify the right messages are shown
@@ -84,7 +94,7 @@ func TestContextualUpsell(t *testing.T) {
 func TestFeatureUpsell(t *testing.T) {
 	// Test that feature upsell has messages for each feature
 	features := []string{"cloud", "team", "audit", "ci"}
-	
+
 	for _, feature := range features {
 		// This is a basic test - in a real test we'd mock the config
 		// and verify the right messages are shown
@@ -94,14 +104,14 @@ func TestFeatureUpsell(t *testing.T) {
 
 func TestUpsellRateLimiting(t *testing.T) {
 	// Test that upsell is rate limited to once per day
-	
+
 	// Reset usage stats
 	stats := &config.UsageStats{
 		FreeRuns:    5,
 		LastUpsell:  time.Now().Add(-25 * time.Hour), // More than 24 hours ago
 		UpsellShown: false,
 	}
-	
+
 	if err := config.SaveUsageStats(stats); err != nil {
 		t.Fatalf("SaveUsageStats failed: %v", err)
 	}

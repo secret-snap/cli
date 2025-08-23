@@ -36,9 +36,9 @@ type GlobalConfig struct {
 
 // UsageStats tracks usage for upsell messages
 type UsageStats struct {
-	FreeRuns     int       `json:"free_runs"`
-	LastUpsell   time.Time `json:"last_upsell"`
-	UpsellShown  bool      `json:"upsell_shown"`
+	FreeRuns    int       `json:"free_runs"`
+	LastUpsell  time.Time `json:"last_upsell"`
+	UpsellShown bool      `json:"upsell_shown"`
 }
 
 var (
@@ -285,10 +285,10 @@ func containsLine(content, line string) bool {
 }
 
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || 
-		(len(s) > len(substr) && (s[:len(substr)] == substr || 
-		s[len(s)-len(substr):] == substr || 
-		contains(s[1:len(s)-1], substr))))
+	return len(s) >= len(substr) && (s == substr ||
+		(len(s) > len(substr) && (s[:len(substr)] == substr ||
+			s[len(s)-len(substr):] == substr ||
+			contains(s[1:len(s)-1], substr))))
 }
 
 func endsWithNewline(s string) bool {
@@ -381,7 +381,7 @@ func ShouldShowUpsell() (bool, error) {
 	}
 
 	// Show upsell after 3rd run and not more than once per day
-	if stats.FreeRuns >= 3 && !stats.UpsellShown {
+	if stats.FreeRuns >= 3 {
 		// Check if we've shown upsell in the last 24 hours
 		if time.Since(stats.LastUpsell) > 24*time.Hour {
 			return true, nil
@@ -398,7 +398,6 @@ func MarkUpsellShown() error {
 		return err
 	}
 
-	stats.UpsellShown = true
 	stats.LastUpsell = time.Now()
 	return SaveUsageStats(stats)
 }
