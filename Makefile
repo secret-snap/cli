@@ -14,7 +14,7 @@ clean:
 
 test:
 	@echo "🧪 Running tests..."
-	go test ./...
+	go test -v ./...
 
 install: build
 	@echo "📦 Installing $(BINARY)..."
