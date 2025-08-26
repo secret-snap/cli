@@ -66,7 +66,7 @@ jobs:
           zip "../secretsnap-${{ steps.version.outputs.VERSION }}-${{ matrix.goos }}-${{ matrix.goarch }}.zip" secretsnap.exe
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: secretsnap-${{ matrix.goos }}-${{ matrix.goarch }}
           path: |
@@ -85,9 +85,11 @@ jobs:
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           path: artifacts/
+          pattern: secretsnap-*
+          merge-multiple: true
 
       - name: Flatten artifacts
         run: |
