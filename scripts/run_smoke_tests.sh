@@ -15,7 +15,7 @@ NC='\033[0m' # No Color
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLI_DIR="$(dirname "$SCRIPT_DIR")"
-API_URL="${DEV_SECRETSNAP_API_URL:-https://api.secretsnap.dev}"
+API_URL="${DEV_SECRETSNAP_API_URL:-http://localhost:8080}"
 SKIP_CLOUD_TESTS="${SKIP_CLOUD_TESTS:-}"
 SKIP_API_TESTS="${SKIP_API_TESTS:-}"
 
@@ -123,7 +123,7 @@ Usage: $0 [OPTIONS] [TEST_NAME]
 
 Options:
     -h, --help          Show this help message
-    --api-url URL       Set API server URL (default: https://api.secretsnap.dev)
+    --api-url URL       Set API server URL (default: http://localhost:8080)
     --skip-cloud        Skip cloud-related tests
     --skip-api          Skip API endpoint tests
     --local-only        Run only local mode tests

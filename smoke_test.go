@@ -57,7 +57,7 @@ func setupSmokeTest(t *testing.T) *SmokeTestData {
 	cliPath = absPath
 
 	// Determine API URL
-	apiURL := "https://api.secretsnap.dev"
+	apiURL := "http://localhost:8080"
 	if envURL := os.Getenv("DEV_SECRETSNAP_API_URL"); envURL != "" {
 		apiURL = envURL
 	}

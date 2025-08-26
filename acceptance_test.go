@@ -682,7 +682,7 @@ func TestLicenseEnforcement(t *testing.T) {
 	}
 
 	// Test that paid commands fail without login
-	// Note: These commands will fail with connection errors because they try to connect to https://api.secretsnap.dev
+	// Note: These commands will fail with connection errors because they try to connect to http://localhost:8080
 	// The license enforcement happens in the CLI logic before the API call
 	tests := []struct {
 		name          string

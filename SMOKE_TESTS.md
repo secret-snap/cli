@@ -39,7 +39,7 @@ The smoke tests are designed to be as "real" as possible, using actual CLI binar
 
 1. Go 1.22+ installed
 2. CLI binary built (`make build`)
-3. Optional: API server running on `https://api.secretsnap.dev`
+3. Optional: API server running on `http://localhost:8080`
 4. Optional: Real license key in `smoke-test-license.key` file for real license tests
 
 ### Quick Start
@@ -223,11 +223,11 @@ The `TestSmokeCloudModeRealLicense` and `TestSmokeAPIRealLicense` tests run the 
 
 ## Environment Variables
 
-| Variable                 | Description              | Default                      |
-| ------------------------ | ------------------------ | ---------------------------- |
-| `DEV_SECRETSNAP_API_URL` | API server URL           | `https://api.secretsnap.dev` |
-| `SKIP_CLOUD_TESTS`       | Skip cloud-related tests | (unset)                      |
-| `SKIP_API_TESTS`         | Skip API endpoint tests  | (unset)                      |
+| Variable                 | Description              | Default                 |
+| ------------------------ | ------------------------ | ----------------------- |
+| `DEV_SECRETSNAP_API_URL` | API server URL           | `http://localhost:8080` |
+| `SKIP_CLOUD_TESTS`       | Skip cloud-related tests | (unset)                 |
+| `SKIP_API_TESTS`         | Skip API endpoint tests  | (unset)                 |
 
 ## Test Data
 
