@@ -502,14 +502,6 @@ func TestSmokeAPI(t *testing.T) {
 		}
 		defer resp.Body.Close()
 
-		// Handle database errors gracefully
-		if resp.StatusCode == 500 {
-			body, _ := io.ReadAll(resp.Body)
-			if strings.Contains(string(body), "Database connection failed") || strings.Contains(string(body), "null value") {
-				t.Skip("API server has database issues, skipping auth tests")
-			}
-		}
-
 		if resp.StatusCode != 200 {
 			t.Errorf("Expected 200, got %d", resp.StatusCode)
 		}
@@ -531,14 +523,6 @@ func TestSmokeAPI(t *testing.T) {
 			t.Fatalf("Invalid login request failed: %v", err)
 		}
 		defer resp2.Body.Close()
-
-		// Handle database errors gracefully
-		if resp2.StatusCode == 500 {
-			body, _ := io.ReadAll(resp2.Body)
-			if strings.Contains(string(body), "Database connection failed") || strings.Contains(string(body), "null value") {
-				t.Skip("API server has database issues, skipping auth tests")
-			}
-		}
 
 		if resp2.StatusCode != 401 {
 			t.Errorf("Expected 401, got %d", resp2.StatusCode)
