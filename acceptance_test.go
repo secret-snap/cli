@@ -279,8 +279,8 @@ func runCommand(t *testing.T, data *TestData, args ...string) (string, string, e
 	env = append(env, "ALLOW_ALL_LICENSES=1") // Allow fake licenses for testing
 
 	// Set API URL if provided in environment
-	if apiURL := os.Getenv("SECRETSNAP_API_URL"); apiURL != "" {
-		env = append(env, "SECRETSNAP_API_URL="+apiURL)
+	if apiURL := os.Getenv("DEV_SECRETSNAP_API_URL"); apiURL != "" {
+		env = append(env, "DEV_SECRETSNAP_API_URL="+apiURL)
 	}
 
 	// Get current directory for building
@@ -475,7 +475,7 @@ func TestPaidMode(t *testing.T) {
 	defer cleanupTestData(t, data)
 
 	// Set API URL to test server
-	os.Setenv("SECRETSNAP_API_URL", server.URL)
+	os.Setenv("DEV_SECRETSNAP_API_URL", server.URL)
 
 	tests := []struct {
 		name    string
@@ -531,7 +531,7 @@ func TestAuditLogs(t *testing.T) {
 	defer cleanupTestData(t, data)
 
 	// Set API URL to test server
-	os.Setenv("SECRETSNAP_API_URL", server.URL)
+	os.Setenv("DEV_SECRETSNAP_API_URL", server.URL)
 
 	// Login first
 	_, _, err := runCommand(t, data, "login", "--license", data.licenseKey)
@@ -682,7 +682,7 @@ func TestLicenseEnforcement(t *testing.T) {
 	}
 
 	// Test that paid commands fail without login
-	// Note: These commands will fail with connection errors because they try to connect to localhost:8080
+	// Note: These commands will fail with connection errors because they try to connect to http://localhost:8080
 	// The license enforcement happens in the CLI logic before the API call
 	tests := []struct {
 		name          string
@@ -745,7 +745,7 @@ func TestLicenseEnforcement(t *testing.T) {
 	defer server.Close()
 
 	// Set API URL to test server
-	os.Setenv("SECRETSNAP_API_URL", server.URL)
+	os.Setenv("DEV_SECRETSNAP_API_URL", server.URL)
 
 	// Login first
 	_, _, err = runCommand(t, data, "login", "--license", data.licenseKey)
@@ -805,7 +805,7 @@ func TestIntegration(t *testing.T) {
 	defer cleanupTestData(t, data)
 
 	// Set API URL to test server
-	os.Setenv("SECRETSNAP_API_URL", server.URL)
+	os.Setenv("DEV_SECRETSNAP_API_URL", server.URL)
 
 	// Complete workflow test
 	steps := []struct {

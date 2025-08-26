@@ -58,7 +58,7 @@ func setupSmokeTest(t *testing.T) *SmokeTestData {
 
 	// Determine API URL
 	apiURL := "http://localhost:8080"
-	if envURL := os.Getenv("SECRETSNAP_API_URL"); envURL != "" {
+	if envURL := os.Getenv("DEV_SECRETSNAP_API_URL"); envURL != "" {
 		apiURL = envURL
 	}
 
@@ -90,7 +90,7 @@ func runSmokeCommand(t *testing.T, data *SmokeTestData, args ...string) (string,
 
 	cmd := exec.Command(data.cliPath, args...)
 	cmd.Dir = data.tempDir
-	cmd.Env = append(os.Environ(), "SECRETSNAP_API_URL="+data.apiURL)
+	cmd.Env = append(os.Environ(), "DEV_SECRETSNAP_API_URL="+data.apiURL)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
