@@ -23,7 +23,6 @@ type SmokeTestData struct {
 	passFile    string
 	projectName string
 	licenseKey  string
-	token       string
 	apiURL      string
 	cliPath     string
 }
@@ -472,6 +471,189 @@ func TestSmokeCloudMode(t *testing.T) {
 	})
 }
 
+// loadRealLicenseKey reads license key from smoke-test-license.key file
+func loadRealLicenseKey(t *testing.T) (string, bool) {
+	licenseFile := "smoke-test-license.key"
+
+	// Check if file exists
+	if _, err := os.Stat(licenseFile); os.IsNotExist(err) {
+		t.Logf("License file %s not found, skipping real license tests", licenseFile)
+		return "", false
+	}
+
+	// Read license key from file
+	content, err := os.ReadFile(licenseFile)
+	if err != nil {
+		t.Logf("Failed to read license file %s: %v, skipping real license tests", licenseFile, err)
+		return "", false
+	}
+
+	licenseKey := strings.TrimSpace(string(content))
+	if licenseKey == "" {
+		t.Logf("License file %s is empty, skipping real license tests", licenseFile)
+		return "", false
+	}
+
+	t.Logf("Loaded real license key from %s", licenseFile)
+	return licenseKey, true
+}
+
+// TestSmokeCloudModeRealLicense tests cloud mode functionality with real license key
+func TestSmokeCloudModeRealLicense(t *testing.T) {
+	// Load real license key
+	realLicenseKey, ok := loadRealLicenseKey(t)
+	if !ok {
+		t.Skip("Real license key not available, skipping real license tests")
+	}
+
+	// Skip if no API server available
+	if os.Getenv("SKIP_CLOUD_TESTS") == "1" {
+		t.Skip("Skipping cloud tests")
+	}
+
+	data := setupSmokeTest(t)
+	defer cleanupSmokeTest(t, data)
+
+	// Override license key with real one
+	data.licenseKey = realLicenseKey
+	data.projectName = "smoke-test-real-proj"
+
+	// Check if API server is actually working
+	resp, err := http.Get(data.apiURL + "/healthz")
+	if err != nil || resp.StatusCode != 200 {
+		t.Skip("API server not available or not healthy")
+	}
+	resp.Body.Close()
+
+	t.Run("1_LoginAndProject", func(t *testing.T) {
+		// Login with real license
+		stdout, stderr, err := runSmokeCommand(t, data, "login", "--license", data.licenseKey)
+		if err != nil {
+			// Check if it's a database error (common in dev environments)
+			if strings.Contains(stderr, "Database connection failed") || strings.Contains(stderr, "null value") {
+				t.Skip("API server has database issues, skipping cloud tests")
+			}
+			t.Fatalf("secretsnap login failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+		}
+
+		// Check token file was created
+		homeDir, _ := os.UserHomeDir()
+		tokenFile := filepath.Join(homeDir, ".secretsnap", "token")
+		if _, err := os.Stat(tokenFile); os.IsNotExist(err) {
+			t.Error("Token file not created")
+		}
+
+		// Create project
+		stdout2, stderr2, err2 := runSmokeCommand(t, data, "project", "create", data.projectName)
+		if err2 != nil {
+			// Check if it's an authentication error
+			if strings.Contains(stderr2, "Could not validate credentials") {
+				t.Skip("Authentication failed, skipping cloud tests")
+			}
+			t.Fatalf("secretsnap project create failed: %v\nstdout: %s\nstderr: %s", err2, stdout2, stderr2)
+		}
+
+		// Check .secretsnap.json was updated
+		configFile := filepath.Join(data.tempDir, ".secretsnap.json")
+		configData, _ := os.ReadFile(configFile)
+		if !strings.Contains(string(configData), "project_id") {
+			t.Error("Project ID not added to config")
+		}
+
+		checkNoSecretsInLogs(t, stdout+stdout2, stderr+stderr2)
+	})
+
+	t.Run("2_PushAndPull", func(t *testing.T) {
+		// Bundle and push
+		stdout, stderr, err := runSmokeCommand(t, data, "bundle", data.envFile, "--push")
+		if err != nil {
+			// Check if it's a project error
+			if strings.Contains(stderr, "no project specified") {
+				t.Skip("No project available, skipping push/pull tests")
+			}
+			if strings.Contains(stderr, "Could not validate credentials") {
+				t.Skip("Authentication failed, skipping push/pull tests")
+			}
+			t.Fatalf("secretsnap bundle --push failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+		}
+
+		// Check version in output
+		if !strings.Contains(stdout, "v1") {
+			t.Error("Expected version v1 in push output")
+		}
+
+		// Pull latest
+		pulledFile := filepath.Join(data.tempDir, "pulled.env")
+		stdout2, stderr2, err2 := runSmokeCommand(t, data, "pull", "--out", pulledFile)
+		if err2 != nil {
+			if strings.Contains(stderr2, "Could not validate credentials") {
+				t.Skip("Authentication failed, skipping pull test")
+			}
+			t.Fatalf("secretsnap pull failed: %v\nstdout: %s\nstderr: %s", err2, stdout2, stderr2)
+		}
+
+		// Check pulled file has correct permissions
+		checkFilePermissions(t, pulledFile, 0600)
+
+		// Compare files
+		original, _ := os.ReadFile(data.envFile)
+		pulled, _ := os.ReadFile(pulledFile)
+		if string(original) != string(pulled) {
+			t.Error("Pulled file content doesn't match original")
+		}
+
+		checkNoSecretsInLogs(t, stdout+stdout2, stderr+stderr2)
+	})
+
+	t.Run("3_SharingAndAudit", func(t *testing.T) {
+		// Share with user
+		stdout, stderr, err := runSmokeCommand(t, data, "share", "--user", "test+alt@example.com", "--role", "read")
+		if err != nil {
+			if strings.Contains(stderr, "Could not validate credentials") {
+				t.Skip("Authentication failed, skipping sharing tests")
+			}
+			t.Fatalf("secretsnap share failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
+		}
+
+		// Check audit logs
+		stdout2, stderr2, err2 := runSmokeCommand(t, data, "audit", "--limit", "10")
+		if err2 != nil {
+			if strings.Contains(stderr2, "Could not validate credentials") {
+				t.Skip("Authentication failed, skipping audit tests")
+			}
+			t.Fatalf("secretsnap audit failed: %v\nstdout: %s\nstderr: %s", err2, stdout2, stderr2)
+		}
+
+		// Check for expected audit events
+		auditOutput := stdout2
+		expectedEvents := []string{"bundle_pushed", "bundle_pulled", "share_added"}
+		for _, event := range expectedEvents {
+			if !strings.Contains(auditOutput, event) {
+				t.Errorf("Expected audit event '%s' not found", event)
+			}
+		}
+
+		checkNoSecretsInLogs(t, stdout+stdout2, stderr+stderr2)
+	})
+
+	t.Run("4_TokenExpiry", func(t *testing.T) {
+		// Corrupt token file
+		homeDir, _ := os.UserHomeDir()
+		tokenFile := filepath.Join(homeDir, ".secretsnap", "token")
+		os.WriteFile(tokenFile, []byte("corrupted-token"), 0600)
+
+		// Try cloud command
+		_, stderr, err := runSmokeCommand(t, data, "pull")
+		if err == nil {
+			t.Error("Expected error with corrupted token")
+		}
+		// Check for any error message (be more flexible about exact wording)
+		if len(strings.TrimSpace(stderr)) == 0 {
+			t.Error("Expected error message for corrupted token")
+		}
+	})
+}
+
 // TestSmokeAPI tests API endpoints directly
 func TestSmokeAPI(t *testing.T) {
 	// Skip if no API server available
@@ -602,6 +784,108 @@ func TestSmokeAPI(t *testing.T) {
 		json.NewDecoder(resp.Body).Decode(&errorResp)
 		if errorResp["code"] == nil || errorResp["message"] == nil {
 			t.Error("Expected error response with code and message")
+		}
+	})
+}
+
+// TestSmokeAPIRealLicense tests API endpoints directly with real license key
+func TestSmokeAPIRealLicense(t *testing.T) {
+	// Load real license key
+	realLicenseKey, ok := loadRealLicenseKey(t)
+	if !ok {
+		t.Skip("Real license key not available, skipping real license API tests")
+	}
+
+	// Skip if no API server available
+	if os.Getenv("SKIP_API_TESTS") == "1" {
+		t.Skip("Skipping API tests")
+	}
+
+	data := setupSmokeTest(t)
+	defer cleanupSmokeTest(t, data)
+
+	// Override license key with real one
+	data.licenseKey = realLicenseKey
+
+	// Check if API server is actually working
+	resp, err := http.Get(data.apiURL + "/healthz")
+	if err != nil || resp.StatusCode != 200 {
+		t.Skip("API server not available or not healthy")
+	}
+	resp.Body.Close()
+
+	t.Run("1_Auth", func(t *testing.T) {
+		// Test login endpoint with real license
+		loginReq := api.LoginRequest{
+			LicenseKey: data.licenseKey,
+		}
+		reqBody, _ := json.Marshal(loginReq)
+
+		resp, err := http.Post(data.apiURL+"/v1/auth/login", "application/json", strings.NewReader(string(reqBody)))
+		if err != nil {
+			t.Fatalf("Login request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			t.Errorf("Expected 200, got %d", resp.StatusCode)
+		}
+
+		var loginResp api.LoginResponse
+		json.NewDecoder(resp.Body).Decode(&loginResp)
+		if loginResp.Token == "" {
+			t.Error("No token in response")
+		}
+	})
+
+	t.Run("2_Projects", func(t *testing.T) {
+		// Get auth token first
+		loginReq := api.LoginRequest{LicenseKey: data.licenseKey}
+		reqBody, _ := json.Marshal(loginReq)
+		resp, err := http.Post(data.apiURL+"/v1/auth/login", "application/json", strings.NewReader(string(reqBody)))
+		if err != nil {
+			t.Fatalf("Login request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		// Handle database errors gracefully
+		if resp.StatusCode == 500 {
+			body, _ := io.ReadAll(resp.Body)
+			if strings.Contains(string(body), "Database connection failed") || strings.Contains(string(body), "null value") {
+				t.Skip("API server has database issues, skipping project tests")
+			}
+		}
+
+		if resp.StatusCode != 200 {
+			t.Skip("Login failed, skipping project tests")
+		}
+
+		var loginResp api.LoginResponse
+		json.NewDecoder(resp.Body).Decode(&loginResp)
+
+		// Create project
+		projectReq := api.CreateProjectRequest{Name: "smoke-test-real-api-proj"}
+		projectBody, _ := json.Marshal(projectReq)
+
+		req, _ := http.NewRequest("POST", data.apiURL+"/v1/projects", strings.NewReader(string(projectBody)))
+		req.Header.Set("Authorization", "Bearer "+loginResp.Token)
+		req.Header.Set("Content-Type", "application/json")
+
+		client := &http.Client{}
+		resp2, err := client.Do(req)
+		if err != nil {
+			t.Fatalf("Project creation failed: %v", err)
+		}
+		defer resp2.Body.Close()
+
+		if resp2.StatusCode != 200 {
+			t.Errorf("Expected 200, got %d", resp2.StatusCode)
+		}
+
+		var projectResp api.Project
+		json.NewDecoder(resp2.Body).Decode(&projectResp)
+		if projectResp.ID == "" || projectResp.Name != "smoke-test-real-api-proj" {
+			t.Error("Invalid project response")
 		}
 	})
 }

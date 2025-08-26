@@ -25,11 +25,13 @@ The smoke tests are designed to be as "real" as possible, using actual CLI binar
 
 1. **TestSmokeLocalMode** - Local encryption/decryption functionality
 2. **TestSmokeCloudMode** - Cloud integration and API features
-3. **TestSmokeAPI** - Direct API endpoint testing
-4. **TestSmokeSecurity** - Security and privacy verification
-5. **TestSmokePerformance** - Performance benchmarks
-6. **TestSmokeBackwardCompatibility** - Version compatibility
-7. **TestSmokeUX** - User experience and error handling
+3. **TestSmokeCloudModeRealLicense** - Cloud features with real license key
+4. **TestSmokeAPI** - Direct API endpoint testing
+5. **TestSmokeAPIRealLicense** - API endpoints with real license key
+6. **TestSmokeSecurity** - Security and privacy verification
+7. **TestSmokePerformance** - Performance benchmarks
+8. **TestSmokeBackwardCompatibility** - Version compatibility
+9. **TestSmokeUX** - User experience and error handling
 
 ## Running the Tests
 
@@ -38,6 +40,7 @@ The smoke tests are designed to be as "real" as possible, using actual CLI binar
 1. Go 1.22+ installed
 2. CLI binary built (`make build`)
 3. Optional: API server running on `localhost:8080`
+4. Optional: Real license key in `smoke-test-license.key` file for real license tests
 
 ### Quick Start
 
@@ -132,6 +135,23 @@ SKIP_CLOUD_TESTS=1 go test -v -run "TestSmoke" ./smoke_test.go ./acceptance_test
 - **Token Management**
   - Corrupted token fails with clear message
   - Prompts for re-login when needed
+
+### ✅ Real License Tests
+
+The `TestSmokeCloudModeRealLicense` and `TestSmokeAPIRealLicense` tests run the same scenarios as above but with a real license key loaded from `smoke-test-license.key` file:
+
+- **License Key Loading**
+
+  - Reads license key from `smoke-test-license.key` file
+  - Skips tests if file doesn't exist (logs message)
+  - Skips tests if file is empty or unreadable
+  - Uses real license for authentication
+
+- **Same Test Coverage**
+  - All login, project creation, push/pull scenarios
+  - Token expiry and corruption testing
+  - API endpoint authentication and project creation
+  - Proper error handling and skip logic
 
 ### ✅ API Tests
 
