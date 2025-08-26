@@ -1,0 +1,131 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*" # Triggers on version tags like v1.0.0, v1.2.3, etc.
+
+permissions:
+  contents: write # Required to create releases and upload assets
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.22"
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          BINARY_NAME=secretsnap
+          if [ "$GOOS" = "windows" ]; then
+            BINARY_NAME="${BINARY_NAME}.exe"
+          fi
+
+          go build -ldflags="-s -w -X main.version=${VERSION}" \
+            -o "bin/${BINARY_NAME}" \
+            ./main.go
+
+      - name: Create tarball (Unix)
+        if: matrix.goos != 'windows'
+        run: |
+          cd bin/
+          tar -czf "../secretsnap-${{ steps.version.outputs.VERSION }}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz" secretsnap
+
+      - name: Create zip (Windows)
+        if: matrix.goos == 'windows'
+        run: |
+          cd bin/
+          zip "../secretsnap-${{ steps.version.outputs.VERSION }}-${{ matrix.goos }}-${{ matrix.goarch }}.zip" secretsnap.exe
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: secretsnap-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            *.tar.gz
+            *.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: artifacts/
+
+      - name: Flatten artifacts
+        run: |
+          mkdir -p release/
+          find artifacts/ -name "*.tar.gz" -o -name "*.zip" | xargs -I {} cp {} release/
+
+      - name: Generate checksums
+        run: |
+          cd release/
+          for file in *; do
+            shasum -a 256 "$file" > "$file.sha256"
+          done
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          name: Release ${{ steps.version.outputs.VERSION }}
+          body: |
+            ## Installation
+
+            ### Quick Install
+            ```bash
+            curl -sSL https://get.secretsnap.dev | bash
+            ```
+
+            ### Manual Download
+            Download the appropriate binary for your platform below.
+
+            ### Checksums
+            SHA256 checksums are provided for verification.
+
+            ## What's Changed
+            - See commit history for changes in this release
+
+          files: |
+            release/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

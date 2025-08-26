@@ -6,7 +6,7 @@
 set -e
 
 BINARY="secretsnap"
-REPO="secretsnap/cli"  # Update this to your actual repo
+REPO="secret-snap/cli"
 INSTALL_DIR="/usr/local/bin"
 
 # Colors for output
@@ -37,8 +37,16 @@ detect_platform() {
 get_latest_version() {
     echo -e "${BLUE}🔍 Checking for latest version...${NC}"
     
-    # For now, use a hardcoded version since we don't have releases yet
-    VERSION="v0.1.0"
+    # Try to get latest release from GitHub API
+    if command -v curl &> /dev/null; then
+        VERSION=$(curl -s "https://api.github.com/repos/$REPO/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    fi
+    
+    # Fallback to hardcoded version if API call fails
+    if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+        echo -e "${YELLOW}⚠️  Could not fetch latest version, using fallback${NC}"
+        VERSION="v1.0.0"
+    fi
     
     echo -e "${GREEN}✅ Latest version: $VERSION${NC}"
 }
@@ -53,13 +61,60 @@ install_binary() {
     
     echo -e "${BLUE}📦 Downloading secretsnap $version...${NC}"
     
-    # For now, we'll build from source since we don't have releases
-    echo -e "${YELLOW}⚠️  Building from source (no releases available yet)${NC}"
+    # Construct download URL
+    ARCHIVE_NAME="secretsnap-$version-$OS-$ARCH.tar.gz"
+    DOWNLOAD_URL="https://github.com/$REPO/releases/download/$version/$ARCHIVE_NAME"
+    
+    # Download the release
+    if command -v curl &> /dev/null; then
+        curl -sL "$DOWNLOAD_URL" -o "$ARCHIVE_NAME"
+    elif command -v wget &> /dev/null; then
+        wget -q "$DOWNLOAD_URL" -O "$ARCHIVE_NAME"
+    else
+        echo -e "${RED}❌ curl or wget is required${NC}"
+        exit 1
+    fi
+    
+    # Check if download was successful
+    if [ ! -f "$ARCHIVE_NAME" ]; then
+        echo -e "${RED}❌ Failed to download $ARCHIVE_NAME${NC}"
+        echo -e "${YELLOW}💡 Falling back to source build...${NC}"
+        install_from_source "$version"
+        return
+    fi
+    
+    # Extract the archive
+    echo -e "${BLUE}📦 Extracting archive...${NC}"
+    tar -xzf "$ARCHIVE_NAME"
+    
+    # Install binary
+    echo -e "${BLUE}📦 Installing to $INSTALL_DIR...${NC}"
+    sudo cp "$BINARY" "$INSTALL_DIR/"
+    sudo chmod +x "$INSTALL_DIR/$BINARY"
+    
+    # Cleanup
+    cd /
+    rm -rf "$TEMP_DIR"
+    
+    echo -e "${GREEN}✅ secretsnap installed successfully!${NC}"
+}
+
+# Fallback: build from source
+install_from_source() {
+    local version=$1
+    
+    echo -e "${YELLOW}⚠️  Building from source (release download failed)${NC}"
     
     # Check if Go is installed
     if ! command -v go &> /dev/null; then
         echo -e "${RED}❌ Go is not installed. Please install Go 1.22+ first.${NC}"
         echo -e "${BLUE}📖 Visit: https://golang.org/doc/install${NC}"
+        exit 1
+    fi
+    
+    # Check if git is installed
+    if ! command -v git &> /dev/null; then
+        echo -e "${RED}❌ git is not installed${NC}"
         exit 1
     fi
     
@@ -73,12 +128,6 @@ install_binary() {
     echo -e "${BLUE}📦 Installing to $INSTALL_DIR...${NC}"
     sudo cp bin/$BINARY "$INSTALL_DIR/"
     sudo chmod +x "$INSTALL_DIR/$BINARY"
-    
-    # Cleanup
-    cd /
-    rm -rf "$TEMP_DIR"
-    
-    echo -e "${GREEN}✅ secretsnap installed successfully!${NC}"
 }
 
 # Verify installation

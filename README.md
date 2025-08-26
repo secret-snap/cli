@@ -11,7 +11,7 @@
 
 ```bash
 # Install via curl (recommended)
-curl -sSL https://get.secretsnap.sh | bash
+curl -sSL https://get.secretsnap.dev | bash
 
 # Or build from source
 git clone https://github.com/secretsnap/cli.git
@@ -182,7 +182,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: curl -sSL https://get.secretsnap.sh | bash
+      - run: curl -sSL https://get.secretsnap.dev | bash
 
       # Option 1: Local mode with shared key
       - run: echo "${{ secrets.PROJECT_KEY }}" > project.key
