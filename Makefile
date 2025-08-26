@@ -16,6 +16,18 @@ test:
 	@echo "🧪 Running tests..."
 	go test -v ./...
 
+smoke-test:
+	@echo "🔥 Running smoke tests..."
+	./scripts/run_smoke_tests.sh
+
+smoke-test-local:
+	@echo "🔥 Running local smoke tests..."
+	./scripts/run_smoke_tests.sh --local-only
+
+smoke-test-cloud:
+	@echo "🔥 Running cloud smoke tests..."
+	./scripts/run_smoke_tests.sh --api-url http://localhost:8080
+
 install: build
 	@echo "📦 Installing $(BINARY)..."
 	cp bin/$(BINARY) /usr/local/bin/
@@ -51,6 +63,9 @@ help:
 	@echo "  build     - Build the binary"
 	@echo "  clean     - Clean build artifacts"
 	@echo "  test      - Run tests"
+	@echo "  smoke-test - Run all smoke tests"
+	@echo "  smoke-test-local - Run local mode smoke tests only"
+	@echo "  smoke-test-cloud - Run cloud mode smoke tests only"
 	@echo "  install   - Install to /usr/local/bin"
 	@echo "  release   - Build for all platforms"
 	@echo "  dev       - Build and run in development"

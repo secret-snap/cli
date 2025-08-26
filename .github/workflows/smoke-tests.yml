@@ -1,0 +1,76 @@
+name: Smoke Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  smoke-tests:
+    name: Run Smoke Tests
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        go-version: [1.22, 1.23]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go ${{ matrix.go-version }}
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Build CLI
+        run: |
+          cd cli
+          make build
+
+      - name: Run Local Smoke Tests
+        run: |
+          cd cli
+          ./scripts/run_smoke_tests.sh --local-only
+
+      - name: Run Cloud Smoke Tests (if API available)
+        run: |
+          cd cli
+          ./scripts/run_smoke_tests.sh --api-url ${{ secrets.SECRETSNAP_API_URL }}
+        env:
+          SECRETSNAP_API_URL: ${{ secrets.SECRETSNAP_API_URL }}
+        continue-on-error: true
+
+      - name: Run Performance Tests
+        run: |
+          cd cli
+          ./scripts/run_smoke_tests.sh TestSmokePerformance
+
+      - name: Run Security Tests
+        run: |
+          cd cli
+          ./scripts/run_smoke_tests.sh TestSmokeSecurity
+
+  smoke-tests-mac:
+    name: Smoke Tests (macOS)
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.22"
+
+      - name: Build CLI
+        run: |
+          cd cli
+          make build
+
+      - name: Run Local Smoke Tests
+        run: |
+          cd cli
+          ./scripts/run_smoke_tests.sh --local-only
