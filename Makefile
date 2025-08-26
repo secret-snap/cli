@@ -26,7 +26,7 @@ smoke-test-local:
 
 smoke-test-cloud:
 	@echo "🔥 Running cloud smoke tests..."
-	./scripts/run_smoke_tests.sh --api-url http://localhost:8080
+	./scripts/run_smoke_tests.sh --api-url https://api.secretsnap.dev
 
 install: build
 	@echo "📦 Installing $(BINARY)..."

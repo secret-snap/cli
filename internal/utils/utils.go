@@ -32,8 +32,8 @@ func GetPassphrase(pass, passFile string) (string, error) {
 
 // GetAPIURL returns the API URL from environment variable or default
 func GetAPIURL() string {
-	if url := os.Getenv("SECRETSNAP_API_URL"); url != "" {
+	if url := os.Getenv("DEV_SECRETSNAP_API_URL"); url != "" {
 		return url
 	}
-	return "http://localhost:8080"
+	return "https://api.secretsnap.dev"
 }

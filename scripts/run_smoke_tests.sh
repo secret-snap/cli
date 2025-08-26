@@ -15,7 +15,7 @@ NC='\033[0m' # No Color
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLI_DIR="$(dirname "$SCRIPT_DIR")"
-API_URL="${SECRETSNAP_API_URL:-http://localhost:8080}"
+API_URL="${DEV_SECRETSNAP_API_URL:-https://api.secretsnap.dev}"
 SKIP_CLOUD_TESTS="${SKIP_CLOUD_TESTS:-}"
 SKIP_API_TESTS="${SKIP_API_TESTS:-}"
 
@@ -82,7 +82,7 @@ run_tests() {
     cd "$CLI_DIR"
     
     # Set environment variables for tests
-    export SECRETSNAP_API_URL="$API_URL"
+    export DEV_SECRETSNAP_API_URL="$API_URL"
     export SKIP_CLOUD_TESTS="$SKIP_CLOUD_TESTS"
     export SKIP_API_TESTS="$SKIP_API_TESTS"
     
@@ -102,7 +102,7 @@ run_specific_test() {
     cd "$CLI_DIR"
     
     # Set environment variables for tests
-    export SECRETSNAP_API_URL="$API_URL"
+    export DEV_SECRETSNAP_API_URL="$API_URL"
     export SKIP_CLOUD_TESTS="$SKIP_CLOUD_TESTS"
     export SKIP_API_TESTS="$SKIP_API_TESTS"
     
@@ -123,7 +123,7 @@ Usage: $0 [OPTIONS] [TEST_NAME]
 
 Options:
     -h, --help          Show this help message
-    --api-url URL       Set API server URL (default: http://localhost:8080)
+    --api-url URL       Set API server URL (default: https://api.secretsnap.dev)
     --skip-cloud        Skip cloud-related tests
     --skip-api          Skip API endpoint tests
     --local-only        Run only local mode tests
@@ -135,7 +135,7 @@ Examples:
     $0 --api-url http://localhost:9000  # Use custom API URL
 
 Environment Variables:
-    SECRETSNAP_API_URL   API server URL
+    DEV_SECRETSNAP_API_URL   API server URL
     SKIP_CLOUD_TESTS     Skip cloud tests if set to 1
     SKIP_API_TESTS       Skip API tests if set to 1
 

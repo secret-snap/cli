@@ -65,6 +65,6 @@ var loginCmd = &cobra.Command{
 
 func init() {
 	loginCmd.Flags().StringVarP(&loginLicense, "license", "l", "", "License key (required)")
-	loginCmd.Flags().StringVarP(&loginAPIURL, "api-url", "", "", "API URL (default: http://localhost:8080)")
+	loginCmd.Flags().StringVarP(&loginAPIURL, "api-url", "", "", "API URL (default: https://api.secretsnap.dev)")
 	loginCmd.MarkFlagRequired("license")
 }
