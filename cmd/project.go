@@ -5,6 +5,7 @@ import (
 
 	"secretsnap/internal/api"
 	"secretsnap/internal/config"
+	"secretsnap/internal/utils"
 
 	"github.com/spf13/cobra"
 )
@@ -23,10 +24,10 @@ var projectCreateCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		projectName := args[0]
 
-		// Load config and token
-		cfg, err := config.LoadConfig()
+		// Load project config and token
+		projectConfig, err := config.LoadProjectConfig()
 		if err != nil {
-			return fmt.Errorf("failed to load config: %v", err)
+			return fmt.Errorf("failed to load project config: %v", err)
 		}
 
 		token, err := config.LoadToken()
@@ -35,11 +36,11 @@ var projectCreateCmd = &cobra.Command{
 		}
 
 		if token == "" {
-			return fmt.Errorf("not logged in. Run 'secretsnap login' first")
+			return fmt.Errorf("not logged in. Run 'secretsnap login --license <KEY>' first")
 		}
 
 		// Create API client
-		client := api.NewClient("http://localhost:8080", token)
+		client := api.NewClient(utils.GetAPIURL(), token)
 
 		// Create project
 		project, err := client.CreateProject(projectName)
@@ -47,15 +48,18 @@ var projectCreateCmd = &cobra.Command{
 			return fmt.Errorf("failed to create project: %v", err)
 		}
 
-		// Update config with project
-		cfg.Project = project.ID
-		if err := config.SaveConfig(cfg); err != nil {
-			return fmt.Errorf("failed to save config: %v", err)
+		// Update project config
+		projectConfig.ProjectName = project.Name
+		projectConfig.ProjectID = project.ID
+		projectConfig.Mode = "cloud"
+		if err := config.SaveProjectConfig(projectConfig); err != nil {
+			return fmt.Errorf("failed to save project config: %v", err)
 		}
 
 		fmt.Printf("✅ Project created successfully!\n")
 		fmt.Printf("📦 Project ID: %s\n", project.ID)
 		fmt.Printf("📝 Name: %s\n", project.Name)
+		fmt.Printf("🔧 Mode: %s\n", projectConfig.Mode)
 
 		return nil
 	},

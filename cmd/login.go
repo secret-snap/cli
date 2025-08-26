@@ -5,6 +5,7 @@ import (
 
 	"secretsnap/internal/api"
 	"secretsnap/internal/config"
+	"secretsnap/internal/utils"
 
 	"github.com/spf13/cobra"
 )
@@ -15,16 +16,16 @@ var (
 )
 
 var loginCmd = &cobra.Command{
-	Use:   "login",
+	Use:   "login --license <KEY>",
 	Short: "Login with license key for cloud features",
 	Long:  `Login to secretsnap cloud with your license key to enable team sharing and audit features.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if loginLicense == "" {
-			return fmt.Errorf("license key is required")
+			return fmt.Errorf("license key is required. Use --license <KEY>")
 		}
 
 		if loginAPIURL == "" {
-			loginAPIURL = "http://localhost:8080" // Default for local development
+			loginAPIURL = utils.GetAPIURL() // Get from environment or default
 		}
 
 		// Create API client
@@ -41,21 +42,22 @@ var loginCmd = &cobra.Command{
 			return fmt.Errorf("failed to save token: %v", err)
 		}
 
-		// Update config to cloud mode
-		cfg, err := config.LoadConfig()
+		// Update project config to cloud mode
+		projectConfig, err := config.LoadProjectConfig()
 		if err != nil {
-			return fmt.Errorf("failed to load config: %v", err)
+			return fmt.Errorf("failed to load project config: %v", err)
 		}
 
-		cfg.Mode = "cloud"
-		if err := config.SaveConfig(cfg); err != nil {
-			return fmt.Errorf("failed to save config: %v", err)
+		projectConfig.Mode = "cloud"
+		if err := config.SaveProjectConfig(projectConfig); err != nil {
+			return fmt.Errorf("failed to save project config: %v", err)
 		}
 
 		fmt.Printf("✅ Logged in successfully!\n")
 		fmt.Printf("👤 User: %s\n", resp.User.Email)
 		fmt.Printf("📋 Plan: %s\n", resp.User.Plan)
-		fmt.Printf("🔧 Mode: %s\n", cfg.Mode)
+		fmt.Printf("🔧 Mode: %s\n", projectConfig.Mode)
+		fmt.Printf("🔑 Token saved to: %s\n", config.GetKeysConfigPath())
 
 		return nil
 	},

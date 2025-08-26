@@ -1,9 +1,9 @@
 # Secrets Snapshot CLI
 
-**Secrets Snapshot** — Encrypt a `.env` into a single bundle, share it safely, and unbundle on machines or CI.
+**Secrets Snapshot** — Encrypt `.env` files into secure bundles with zero-friction workflows for teams and developers.
 
-- **Free**: local-only encrypt/decrypt/run
-- **Paid**: login via license, cloud push/pull, share, simple audit
+- **Free**: Local encryption with cached keys (zero prompts)
+- **Paid**: Cloud storage, team sharing, audit logs
 
 ## 🚀 Quick Start
 
@@ -20,23 +20,46 @@ make build
 sudo make install
 ```
 
-### Free Mode (Local Only)
+### Zero-Prompt Workflow (Free)
 
 ```bash
-# Initialize configuration
+# Initialize project (creates cached key automatically)
 secretsnap init
 
-# Encrypt your .env file
-secretsnap bundle .env --out secrets.envsnap
+# Encrypt your .env file (uses cached key, no prompts)
+secretsnap bundle .env
 
-# Decrypt to a new .env file
-secretsnap unbundle secrets.envsnap --out .env
+# Decrypt to .env file (uses cached key, no prompts)
+secretsnap unbundle secrets.envsnap
 
-# Run a command with environment variables
+# Run commands with environment variables
 secretsnap run secrets.envsnap -- npm start
 ```
 
-### Paid Mode (Cloud Features)
+### Passphrase Mode (Extra Security)
+
+```bash
+# Encrypt with passphrase (prompts once)
+secretsnap bundle .env --pass-mode --out secrets.envsnap
+
+# Decrypt with passphrase (prompts once)
+secretsnap unbundle secrets.envsnap --pass-mode --out .env
+
+# Run with passphrase (prompts once)
+secretsnap run secrets.envsnap --pass-mode -- npm start
+```
+
+### Key Sharing (Free)
+
+```bash
+# Export your project key for teammates
+secretsnap key export
+
+# Teammate imports the key and can use zero-prompt workflow
+# (Key sharing happens outside of secretsnap)
+```
+
+### Cloud Features (Paid)
 
 ```bash
 # Login with your license key
@@ -46,74 +69,106 @@ secretsnap login --license your-license-key
 secretsnap project create "My App"
 
 # Push bundle to cloud
-secretsnap bundle .env --push --project "My App"
+secretsnap bundle .env --push
 
 # Pull latest bundle
-secretsnap pull --project "My App" --out .env
+secretsnap pull --out .env
 
-# Share with team member
-secretsnap share --project "My App" --user alice@example.com --role member
+# Pull specific version
+secretsnap pull --version 1 --out .env
+
+# Share with team member (read access)
+secretsnap share --user alice@example.com --role read
+
+# Share with write access
+secretsnap share --user bob@example.com --role write
 
 # View audit logs
-secretsnap audit --project "My App"
+secretsnap audit --limit 50
 ```
 
 ## 📋 Commands
 
-### Free Commands
+### Core Commands
 
-| Command                   | Description                            |
-| ------------------------- | -------------------------------------- |
-| `init`                    | Initialize local configuration         |
-| `bundle <file>`           | Encrypt .env file with passphrase      |
-| `unbundle <file>`         | Decrypt bundle to .env file            |
-| `run <file> -- <command>` | Run command with environment variables |
+| Command                   | Description                               |
+| ------------------------- | ----------------------------------------- |
+| `init`                    | Initialize project with cached key        |
+| `bundle <file>`           | Encrypt .env file (local mode by default) |
+| `unbundle <file>`         | Decrypt bundle to .env file               |
+| `run <file> -- <command>` | Run command with environment variables    |
+| `key export`              | Export project key for team sharing       |
 
-### Paid Commands
+### Security Modes
 
-| Command                 | Description                    |
-| ----------------------- | ------------------------------ |
-| `login`                 | Login with license key         |
-| `project create <name>` | Create new project             |
-| `bundle --push`         | Push bundle to cloud           |
-| `pull`                  | Pull latest bundle from cloud  |
-| `share`                 | Share project with team member |
-| `audit`                 | View project audit logs        |
+| Flag              | Description                        |
+| ----------------- | ---------------------------------- |
+| `--pass-mode`     | Use passphrase (prompts for input) |
+| `--pass <phrase>` | Use specific passphrase            |
+| `--pass-file <f>` | Read passphrase from file          |
+
+### Cloud Commands (Paid)
+
+| Command                            | Description                      |
+| ---------------------------------- | -------------------------------- | ------------------------------ |
+| `login --license <key>`            | Login with license key           |
+| `project create <name>`            | Create new project               |
+| `bundle --push`                    | Push bundle to cloud             |
+| `pull [--out .env]`                | Pull latest bundle from cloud    |
+| `pull --version N`                 | Pull specific version from cloud |
+| `share --user <email> --role <read | write>`                          | Share project with team member |
+| `audit [--limit 50]`               | View project audit logs          |
 
 ## 🔧 Configuration
 
-Configuration is stored in `~/.secretsnap/config.json`:
+### Project Configuration (`.secretsnap.json`)
 
 ```json
 {
+  "project_name": "my-app",
+  "project_id": "local",
   "mode": "local",
-  "project": "local"
+  "bundle_path": "secrets.envsnap"
 }
 ```
 
-For cloud mode:
+### Global Key Cache (`~/.secretsnap/keys.json`)
 
 ```json
 {
-  "mode": "cloud",
-  "project": "your-project-id"
+  "projects": {
+    "my-app": {
+      "key_id": "S+OI6LVBJwCuUITHN89zIQ==",
+      "alg": "age-symmetric-v1",
+      "key_b64": "ZBnqDGfuMNKFSU9Cjm+lxVdw5pujoC40ZpC3fv8bXy0=",
+      "created_at": "2025-08-22T16:04:12.695702-06:00"
+    }
+  }
 }
 ```
 
 ## 🔐 Security Model
 
-### Free Mode
+### Local Mode (Default)
 
-- Uses age encryption with passphrase
-- All encryption/decryption happens locally
-- No data sent to servers
+- **Zero prompts**: Uses cached 32-byte project key
+- **Age encryption**: Symmetric encryption with project key
+- **Secure storage**: Keys stored with 0600 permissions
+- **No cloud dependency**: All operations local
 
-### Paid Mode
+### Passphrase Mode
 
-- CLI generates 32-byte random data key
-- Encrypts .env with age symmetric encryption using data key
-- Data key is encrypted with AWS KMS and stored in cloud
-- Server never sees plaintext secrets
+- **Explicit security**: Prompts for passphrase each time
+- **Age encryption**: Uses scrypt-derived key from passphrase
+- **No key cache**: Never touches cached project keys
+- **CI friendly**: Supports `--pass-file` for automation
+
+### Cloud Mode (Paid)
+
+- **Fresh data keys**: 32-byte key per bundle
+- **KMS encryption**: Data keys wrapped with AWS KMS
+- **Zero-knowledge**: Server never sees plaintext secrets
+- **Team sharing**: Built-in access control and audit
 
 ## 🏗️ CI/CD Integration
 
@@ -128,13 +183,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: curl -sSL https://get.secretsnap.sh | bash
-      - run: secretsnap pull --project ${{ secrets.SECRETSNAP_PROJECT_ID }} --out .env
+
+      # Option 1: Local mode with shared key
+      - run: echo "${{ secrets.PROJECT_KEY }}" > project.key
+      - run: secretsnap unbundle secrets.envsnap --out .env
+
+      # Option 2: Cloud mode
+      - run: secretsnap login --license ${{ secrets.SECRETSNAP_LICENSE }}
+      - run: secretsnap pull --out .env
+
       - run: make test
 ```
 
 ### Environment Variables
 
-Set these secrets in your CI environment:
+For local mode:
+
+- `PROJECT_KEY`: Base64-encoded project key (from `secretsnap key export`)
+
+For cloud mode:
 
 - `SECRETSNAP_LICENSE`: Your license key
 - `SECRETSNAP_PROJECT_ID`: Your project ID
@@ -143,7 +210,7 @@ Set these secrets in your CI environment:
 
 | Plan        | Price      | Features                         |
 | ----------- | ---------- | -------------------------------- |
-| **Free**    | $0         | Local encryption only            |
+| **Free**    | $0         | Local encryption                 |
 | **Indie**   | $9/month   | Cloud storage, team sharing      |
 | **Startup** | $49/month  | Advanced audit, priority support |
 | **Team**    | $199/month | SSO, advanced security features  |
@@ -182,34 +249,92 @@ make fmt
 make lint
 ```
 
+### Smoke Tests
+
+Comprehensive integration tests that verify end-to-end functionality:
+
+```bash
+# Run all smoke tests
+./scripts/run_smoke_tests.sh
+
+# Run only local mode tests (no API server required)
+./scripts/run_smoke_tests.sh --local-only
+
+# Run specific test category
+./scripts/run_smoke_tests.sh TestSmokeLocalMode
+
+# Run with real license key (create smoke-test-license.key file first)
+echo "your-real-license-key" > smoke-test-license.key
+./scripts/run_smoke_tests.sh TestSmokeCloudModeRealLicense
+```
+
+**Test Categories:**
+
+- `TestSmokeLocalMode` - Local encryption/decryption
+- `TestSmokeCloudMode` - Cloud features with dev license
+- `TestSmokeCloudModeRealLicense` - Cloud features with real license
+- `TestSmokeAPI` - Direct API endpoint testing
+- `TestSmokeAPIRealLicense` - API endpoints with real license
+- `TestSmokeSecurity` - Security and privacy verification
+- `TestSmokePerformance` - Performance benchmarks
+
+See [SMOKE_TESTS.md](SMOKE_TESTS.md) for detailed documentation.
+
 ## 🔍 Troubleshooting
 
 ### Common Issues
 
+**"No local project key found"**
+
+```bash
+# Option 1: Get key from teammate
+secretsnap key export --project my-app
+
+# Option 2: Use passphrase mode
+secretsnap unbundle secrets.envsnap --pass-mode
+
+# Option 3: Use cloud mode (paid)
+secretsnap login --license your-key
+secretsnap pull --out .env
+```
+
+**"Refusing to overwrite .env"**
+
+```bash
+# Use --force flag
+secretsnap unbundle secrets.envsnap --force
+```
+
+**"Cloud sync is Pro"**
+
+```bash
+# Login with license key
+secretsnap login --license your-license-key
+
+# Or use local mode (no --push flag)
+secretsnap bundle .env
+```
+
 **"Failed to decrypt"**
 
-- Check that you're using the correct passphrase
-- Ensure the bundle file wasn't corrupted
+- Check that you're using the correct mode (local vs passphrase)
+- Verify the bundle file wasn't corrupted
+- For passphrase mode: ensure correct passphrase
 
-**"Not logged in"**
+**"Version N not found"**
 
-- Run `secretsnap login --license your-key`
-- Check that your license is valid
+```bash
+# Check available versions with audit command
+secretsnap audit --limit 10
 
-**"Access denied to project"**
-
-- Verify you're a member of the project
-- Check that the project ID is correct
-
-**"Failed to connect to API"**
-
-- Ensure the API server is running
-- Check your network connection
-- Verify the API URL in your configuration
+# Pull latest version instead
+secretsnap pull --out .env
+```
 
 ### Getting Help
 
 - 🐛 [Report Issues](https://github.com/secret-snap/cli/issues)
+- 📖 [Documentation](https://docs.secretsnap.sh)
 
 ## 📄 License
 

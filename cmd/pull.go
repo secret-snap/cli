@@ -8,6 +8,7 @@ import (
 	"secretsnap/internal/api"
 	"secretsnap/internal/config"
 	"secretsnap/internal/crypto"
+	"secretsnap/internal/utils"
 
 	"github.com/spf13/cobra"
 )
@@ -15,17 +16,19 @@ import (
 var (
 	pullOutFile string
 	pullProject string
+	pullVersion int
+	pullForce   bool
 )
 
 var pullCmd = &cobra.Command{
-	Use:   "pull",
+	Use:   "pull [--out .env] [--version N]",
 	Short: "Pull latest bundle from cloud",
 	Long:  `Download and decrypt the latest bundle from the cloud project.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Load config and token
-		cfg, err := config.LoadConfig()
+		// Load project config and token
+		projectConfig, err := config.LoadProjectConfig()
 		if err != nil {
-			return fmt.Errorf("failed to load config: %v", err)
+			return fmt.Errorf("failed to load project config: %v", err)
 		}
 
 		token, err := config.LoadToken()
@@ -34,29 +37,35 @@ var pullCmd = &cobra.Command{
 		}
 
 		if token == "" {
-			return fmt.Errorf("not logged in. Run 'secretsnap login' first")
+			return fmt.Errorf("not logged in. Run 'secretsnap login --license <KEY>' first")
 		}
 
 		// Use project from config if not specified
 		if pullProject == "" {
-			pullProject = cfg.Project
+			pullProject = projectConfig.ProjectID
 		}
 
 		if pullProject == "" {
-			return fmt.Errorf("no project specified. Use --project or set in config")
+			return fmt.Errorf("no project specified. Use --project or run 'secretsnap project create <name>' first")
 		}
 
 		// Create API client
-		client := api.NewClient("http://localhost:8080", token)
+		client := api.NewClient(utils.GetAPIURL(), token)
 
 		// Pull bundle
-		resp, err := client.BundlePull(pullProject)
-		if err != nil {
-			return fmt.Errorf("failed to pull bundle: %v", err)
+		var resp *api.BundlePullResponse
+		var bundlePullErr error
+		if pullVersion > 0 {
+			resp, bundlePullErr = client.BundlePullVersion(pullProject, pullVersion)
+		} else {
+			resp, bundlePullErr = client.BundlePull(pullProject)
+		}
+		if bundlePullErr != nil {
+			return fmt.Errorf("failed to pull bundle: %v", bundlePullErr)
 		}
 
 		// Download encrypted data
-		encryptedData, err := client.DownloadFromS3(resp.DownloadURL)
+		encryptedData, err := client.DownloadFromAPI(resp.DownloadURL)
 		if err != nil {
 			return fmt.Errorf("failed to download bundle: %v", err)
 		}
@@ -73,12 +82,31 @@ var pullCmd = &cobra.Command{
 			return fmt.Errorf("failed to decrypt bundle: %v", err)
 		}
 
-		// Write output file
+		// Check if output file exists and handle --force
+		if _, err := os.Stat(pullOutFile); err == nil && !pullForce {
+			return fmt.Errorf("refusing to overwrite %s. Use `--force`", pullOutFile)
+		}
+
+		// Write output file with secure permissions
 		if err := os.WriteFile(pullOutFile, decryptedData, 0600); err != nil {
 			return fmt.Errorf("failed to write output file: %v", err)
 		}
 
-		fmt.Printf("✅ Pulled bundle v%d to %s\n", resp.Version, pullOutFile)
+		// Check if file permissions are correct and warn if not
+		if info, err := os.Stat(pullOutFile); err == nil {
+			if info.Mode().Perm() != 0600 {
+				fmt.Printf("⚠️  Warning: %s has permissions %v, should be 0600\n", pullOutFile, info.Mode().Perm())
+			}
+		}
+
+		fmt.Printf("✅ Pulled version %d to %s\n", resp.Version, pullOutFile)
+
+		// Show feature-specific upsell for cloud features
+		if err := utils.ShowFeatureUpsell("cloud"); err != nil {
+			// Don't fail the command if upsell fails
+			fmt.Fprintf(os.Stderr, "Warning: failed to show upsell: %v\n", err)
+		}
+
 		return nil
 	},
 }
@@ -86,4 +114,6 @@ var pullCmd = &cobra.Command{
 func init() {
 	pullCmd.Flags().StringVarP(&pullOutFile, "out", "o", ".env", "Output file path")
 	pullCmd.Flags().StringVarP(&pullProject, "project", "", "", "Project ID or name")
+	pullCmd.Flags().IntVarP(&pullVersion, "version", "", 0, "Specific version to pull")
+	pullCmd.Flags().BoolVarP(&pullForce, "force", "f", false, "Overwrite output file if it exists")
 }

@@ -11,6 +11,7 @@ func InitCommands(rootCmd *cobra.Command) {
 	rootCmd.AddCommand(bundleCmd)
 	rootCmd.AddCommand(unbundleCmd)
 	rootCmd.AddCommand(runCmd)
+	rootCmd.AddCommand(keyExportCmd)
 
 	// Paid commands
 	rootCmd.AddCommand(loginCmd)

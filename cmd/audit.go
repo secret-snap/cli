@@ -2,10 +2,12 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"secretsnap/internal/api"
 	"secretsnap/internal/config"
+	"secretsnap/internal/utils"
 
 	"github.com/spf13/cobra"
 )
@@ -16,14 +18,14 @@ var (
 )
 
 var auditCmd = &cobra.Command{
-	Use:   "audit",
+	Use:   "audit [--limit 50]",
 	Short: "View project audit logs",
 	Long:  `View recent audit logs for a project to track access and changes.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Load config and token
-		cfg, err := config.LoadConfig()
+		// Load project config and token
+		projectConfig, err := config.LoadProjectConfig()
 		if err != nil {
-			return fmt.Errorf("failed to load config: %v", err)
+			return fmt.Errorf("failed to load project config: %v", err)
 		}
 
 		token, err := config.LoadToken()
@@ -32,20 +34,20 @@ var auditCmd = &cobra.Command{
 		}
 
 		if token == "" {
-			return fmt.Errorf("not logged in. Run 'secretsnap login' first")
+			return fmt.Errorf("not logged in. Run 'secretsnap login --license <KEY>' first")
 		}
 
 		// Use project from config if not specified
 		if auditProject == "" {
-			auditProject = cfg.Project
+			auditProject = projectConfig.ProjectID
 		}
 
 		if auditProject == "" {
-			return fmt.Errorf("no project specified. Use --project or set in config")
+			return fmt.Errorf("no project specified. Use --project or run 'secretsnap project create <name>' first")
 		}
 
 		// Create API client
-		client := api.NewClient("http://localhost:8080", token)
+		client := api.NewClient(utils.GetAPIURL(), token)
 
 		// Get audit logs
 		logs, err := client.GetAuditLogs(auditProject, auditLimit)
@@ -58,7 +60,7 @@ var auditCmd = &cobra.Command{
 			return nil
 		}
 
-		fmt.Printf("📋 Audit logs for project %s:\n\n", auditProject)
+		fmt.Printf("📋 Audit logs for project %s:\n\n", projectConfig.ProjectName)
 		for _, log := range logs {
 			// Parse timestamp
 			t, err := time.Parse(time.RFC3339, log.CreatedAt)
@@ -68,10 +70,16 @@ var auditCmd = &cobra.Command{
 
 			fmt.Printf("🕐 %s\n", t.Format("2006-01-02 15:04:05"))
 			fmt.Printf("📝 Action: %s\n", log.Action)
-			if log.Details != nil && len(log.Details) > 0 {
+			if len(log.Details) > 0 {
 				fmt.Printf("📄 Details: %v\n", log.Details)
 			}
 			fmt.Println()
+		}
+
+		// Show feature-specific upsell for audit logs
+		if err := utils.ShowFeatureUpsell("audit"); err != nil {
+			// Don't fail the command if upsell fails
+			fmt.Fprintf(os.Stderr, "Warning: failed to show upsell: %v\n", err)
 		}
 
 		return nil

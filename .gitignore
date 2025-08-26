@@ -1,6 +1,8 @@
 # Binaries
 bin/*
 !bin/.gitkeep
+secretsnap
+*.envsnap
 
 # Binaries for programs and plugins
 # https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
@@ -29,3 +31,12 @@ go.work.sum
 # Editor/IDE
 .idea/
 .vscode/
+.secretsnap.key
+secrets.envsnap.key
+.secretsnap/
+
+# env file
+*.env
+
+# smoke test
+smoke-test-license.key

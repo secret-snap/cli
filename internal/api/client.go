@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -48,6 +49,8 @@ type BundlePushRequest struct {
 type BundlePushResponse struct {
 	UploadURL string `json:"upload_url"`
 	BundleID  string `json:"bundle_id"`
+	S3Key     string `json:"s3_key"`
+	Version   int    `json:"version"`
 }
 
 type BundleFinalizeRequest struct {
@@ -144,7 +147,17 @@ func (c *Client) BundleFinalize(bundleID, s3Key string, wrappedKey []byte) error
 }
 
 func (c *Client) BundlePull(projectID string) (*BundlePullResponse, error) {
-	url := fmt.Sprintf("%s/v1/bundles/pull?project_id=%s&latest=true", c.baseURL, projectID)
+	return c.BundlePullVersion(projectID, 0) // 0 means latest
+}
+
+func (c *Client) BundlePullVersion(projectID string, version int) (*BundlePullResponse, error) {
+	var url string
+	if version > 0 {
+		url = fmt.Sprintf("%s/v1/bundles/pull?project_id=%s&version=%d", c.baseURL, projectID, version)
+	} else {
+		url = fmt.Sprintf("%s/v1/bundles/pull?project_id=%s&latest=true", c.baseURL, projectID)
+	}
+
 	resp, err := c.get(url)
 	if err != nil {
 		return nil, err
@@ -183,44 +196,61 @@ func (c *Client) GetAuditLogs(projectID string, limit int) ([]AuditLog, error) {
 	return logs, nil
 }
 
-func (c *Client) UploadToS3(uploadURL string, data []byte) error {
-	req, err := http.NewRequest("PUT", uploadURL, bytes.NewReader(data))
+func (c *Client) UploadToAPI(uploadURL string, data []byte) error {
+	// If it's a relative URL, make it absolute
+	if strings.HasPrefix(uploadURL, "/") {
+		uploadURL = c.baseURL + uploadURL
+	}
+
+	req, err := http.NewRequest("POST", uploadURL, bytes.NewReader(data))
 	if err != nil {
 		return fmt.Errorf("failed to create upload request: %v", err)
 	}
 
 	req.Header.Set("Content-Type", "application/octet-stream")
 	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(data)))
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to upload to S3: %v", err)
+		return fmt.Errorf("failed to upload to API: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("S3 upload failed with status %d: %s", resp.StatusCode, string(body))
+		return fmt.Errorf("API upload failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
 	return nil
 }
 
-func (c *Client) DownloadFromS3(downloadURL string) ([]byte, error) {
+func (c *Client) DownloadFromAPI(downloadURL string) ([]byte, error) {
+	// If it's a relative URL, make it absolute
+	if strings.HasPrefix(downloadURL, "/") {
+		downloadURL = c.baseURL + downloadURL
+	}
+
 	req, err := http.NewRequest("GET", downloadURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create download request: %v", err)
 	}
 
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to download from S3: %v", err)
+		return nil, fmt.Errorf("failed to download from API: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("S3 download failed with status %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("API download failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
 	data, err := io.ReadAll(resp.Body)
