@@ -74,8 +74,14 @@ secretsnap bundle .env --push
 # Pull latest bundle
 secretsnap pull --out .env
 
-# Share with team member
+# Pull specific version
+secretsnap pull --version 1 --out .env
+
+# Share with team member (read access)
 secretsnap share --user alice@example.com --role read
+
+# Share with write access
+secretsnap share --user bob@example.com --role write
 
 # View audit logs
 secretsnap audit --limit 50
@@ -103,14 +109,15 @@ secretsnap audit --limit 50
 
 ### Cloud Commands (Paid)
 
-| Command                 | Description                    |
-| ----------------------- | ------------------------------ |
-| `login --license <key>` | Login with license key         |
-| `project create <name>` | Create new project             |
-| `bundle --push`         | Push bundle to cloud           |
-| `pull [--out .env]`     | Pull latest bundle from cloud  |
-| `share --user <email>`  | Share project with team member |
-| `audit [--limit 50]`    | View project audit logs        |
+| Command                            | Description                      |
+| ---------------------------------- | -------------------------------- | ------------------------------ |
+| `login --license <key>`            | Login with license key           |
+| `project create <name>`            | Create new project               |
+| `bundle --push`                    | Push bundle to cloud             |
+| `pull [--out .env]`                | Pull latest bundle from cloud    |
+| `pull --version N`                 | Pull specific version from cloud |
+| `share --user <email> --role <read | write>`                          | Share project with team member |
+| `audit [--limit 50]`               | View project audit logs          |
 
 ## 🔧 Configuration
 
@@ -242,6 +249,37 @@ make fmt
 make lint
 ```
 
+### Smoke Tests
+
+Comprehensive integration tests that verify end-to-end functionality:
+
+```bash
+# Run all smoke tests
+./scripts/run_smoke_tests.sh
+
+# Run only local mode tests (no API server required)
+./scripts/run_smoke_tests.sh --local-only
+
+# Run specific test category
+./scripts/run_smoke_tests.sh TestSmokeLocalMode
+
+# Run with real license key (create smoke-test-license.key file first)
+echo "your-real-license-key" > smoke-test-license.key
+./scripts/run_smoke_tests.sh TestSmokeCloudModeRealLicense
+```
+
+**Test Categories:**
+
+- `TestSmokeLocalMode` - Local encryption/decryption
+- `TestSmokeCloudMode` - Cloud features with dev license
+- `TestSmokeCloudModeRealLicense` - Cloud features with real license
+- `TestSmokeAPI` - Direct API endpoint testing
+- `TestSmokeAPIRealLicense` - API endpoints with real license
+- `TestSmokeSecurity` - Security and privacy verification
+- `TestSmokePerformance` - Performance benchmarks
+
+See [SMOKE_TESTS.md](SMOKE_TESTS.md) for detailed documentation.
+
 ## 🔍 Troubleshooting
 
 ### Common Issues
@@ -282,6 +320,16 @@ secretsnap bundle .env
 - Check that you're using the correct mode (local vs passphrase)
 - Verify the bundle file wasn't corrupted
 - For passphrase mode: ensure correct passphrase
+
+**"Version N not found"**
+
+```bash
+# Check available versions with audit command
+secretsnap audit --limit 10
+
+# Pull latest version instead
+secretsnap pull --out .env
+```
 
 ### Getting Help
 
