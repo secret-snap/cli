@@ -116,7 +116,7 @@ func showRandomUpsell() {
 
 	// Select random message
 	message := UpsellMessages[rand.Intn(len(UpsellMessages))]
-	
+
 	// Select random call-to-action
 	cta := UpsellCallToAction[rand.Intn(len(UpsellCallToAction))]
 
@@ -190,7 +190,7 @@ func showContextualUpsell(command string) {
 
 	// Select random contextual message
 	message := contextualMessages[rand.Intn(len(contextualMessages))]
-	
+
 	// Select random call-to-action
 	cta := UpsellCallToAction[rand.Intn(len(UpsellCallToAction))]
 
@@ -237,7 +237,7 @@ func showFeatureUpsell(feature string) {
 
 	var featureMessages map[string][]string = map[string][]string{
 		"cloud": {
-			"☁️ Cloud storage is a Pro feature! Store your bundles securely in AWS S3.",
+			"☁️ Cloud storage is a Pro feature! Store your bundles securely.",
 			"🚀 Ready for cloud storage? Upgrade to Pro for secure bundle hosting!",
 			"📦 Pro tip: Cloud storage keeps your bundles safe and accessible!",
 		},
@@ -267,7 +267,7 @@ func showFeatureUpsell(feature string) {
 
 	// Select random feature message
 	message := messages[rand.Intn(len(messages))]
-	
+
 	// Select random call-to-action
 	cta := UpsellCallToAction[rand.Intn(len(UpsellCallToAction))]
 

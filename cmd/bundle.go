@@ -123,9 +123,9 @@ var bundleCmd = &cobra.Command{
 				return fmt.Errorf("failed to get upload URL: %v", err)
 			}
 
-			// Step 2: Upload encrypted data to S3
+			// Step 2: Upload encrypted data to API server
 			fmt.Printf("☁️ Uploading to cloud storage...\n")
-			if err := client.UploadToS3(pushResp.UploadURL, encryptedData); err != nil {
+			if err := client.UploadToAPI(pushResp.UploadURL, encryptedData); err != nil {
 				return fmt.Errorf("failed to upload to cloud: %v", err)
 			}
 
@@ -138,6 +138,7 @@ var bundleCmd = &cobra.Command{
 			fmt.Printf("✅ Successfully pushed to cloud!\n")
 			fmt.Printf("📦 Bundle ID: %s\n", pushResp.BundleID)
 			fmt.Printf("📁 Project: %s\n", projectConfig.ProjectName)
+			fmt.Printf("🔢 Version: v%d\n", pushResp.Version)
 
 			// Also save local copy if requested
 			if bundleOutFile != "secrets.envsnap" {

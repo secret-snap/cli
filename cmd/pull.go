@@ -53,13 +53,19 @@ var pullCmd = &cobra.Command{
 		client := api.NewClient(utils.GetAPIURL(), token)
 
 		// Pull bundle
-		resp, err := client.BundlePull(pullProject)
-		if err != nil {
-			return fmt.Errorf("failed to pull bundle: %v", err)
+		var resp *api.BundlePullResponse
+		var bundlePullErr error
+		if pullVersion > 0 {
+			resp, bundlePullErr = client.BundlePullVersion(pullProject, pullVersion)
+		} else {
+			resp, bundlePullErr = client.BundlePull(pullProject)
+		}
+		if bundlePullErr != nil {
+			return fmt.Errorf("failed to pull bundle: %v", bundlePullErr)
 		}
 
 		// Download encrypted data
-		encryptedData, err := client.DownloadFromS3(resp.DownloadURL)
+		encryptedData, err := client.DownloadFromAPI(resp.DownloadURL)
 		if err != nil {
 			return fmt.Errorf("failed to download bundle: %v", err)
 		}
