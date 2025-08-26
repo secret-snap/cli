@@ -37,3 +37,6 @@ secrets.envsnap.key
 
 # env file
 *.env
+
+# smoke test
+smoke-test-license.key
