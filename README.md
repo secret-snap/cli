@@ -20,6 +20,10 @@ make build
 sudo make install
 ```
 
+<p align="center">
+  <img src="assets/demo.gif" alt="Secretsnap demo" width="600"/>
+</p>
+
 ### Zero-Prompt Workflow (Free)
 
 ```bash
